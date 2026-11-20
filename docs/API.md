@@ -117,6 +117,8 @@ All return JSON. All require the token.
   "version": "0.1.0",
   "phase": 1,
   "from_source": true,
+  "python": "3.12.15",
+  "packaged": false,
   "paths": {
     "home": "/home/u/.local/share/VoucherVisionLocal",
     "models_dir": "/datac/VoucherVisionLocal_Models",
@@ -143,6 +145,9 @@ All return JSON. All require the token.
 ```
 
 `paths.private_file` is the path only. The file is never read for this route.
+`python` is the version of the Python running the server
+(`platform.python_version()`). `packaged` is true when the environment variable
+`VVL_PACKAGED` is `"1"`, which the desktop shell sets in the installed app.
 
 ### `GET /v1/system` and `GET /v1/system?refresh=1`
 
@@ -332,8 +337,13 @@ saves to settings, returns `{"selection": {...}}`.
 {"models_dir": "/datac/VoucherVisionLocal_Models",
  "selection": {"ocr": ["demo:mock"], "parse": "demo:mock"},
  "enrichment": {"elevation": true, "wfo_source": "off"},
- "ui": {"theme": "dark"}}
+ "ui": {"theme": "dark"},
+ "setup": {"usage": null}}
 ```
+
+`setup.usage` is the answer to the Setup page's "How will you run models?":
+`openrouter | local | both`, or `null` until the user chooses (the UI opens the
+Setup page on first run while it is `null`).
 
 `PUT` accepts a partial object with these keys only; unknown keys are rejected
 with HTTP 400. `wfo_source`: `off | vvgo | local`. The response to `PUT` also

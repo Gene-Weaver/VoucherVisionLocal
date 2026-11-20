@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import threading
 import time
 
@@ -45,6 +46,10 @@ def app_info():
         "version": vvl.__version__,
         "phase": vvl.PHASE,
         "from_source": paths.from_source(),
+        # The Python running this server, and whether it is the installed desktop app
+        # (the desktop shell sets VVL_PACKAGED=1 there).
+        "python": platform.python_version(),
+        "packaged": os.environ.get("VVL_PACKAGED") == "1",
         "paths": {
             "home": str(paths.home()),
             "models_dir": current["models_dir"],

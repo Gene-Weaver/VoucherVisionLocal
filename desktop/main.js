@@ -1,8 +1,12 @@
 // VoucherVisionLocal desktop shell.
 //
-// Starts the Python backend (`uv run vvl serve`) on a free local port with a
-// random session token, waits for it, shows its UI, and stops it on quit.
-// The token is never logged.
+// Starts the Python backend on a free local port with a random session token,
+// waits for it, shows its UI, and stops it on quit. The token is never logged.
+//
+// From a source checkout (`npm start`) the backend runs with `uv run vvl serve`.
+// In the installed app it runs from the bundled source with the Python
+// environment that runtime.js prepares on first launch, and updater.js keeps
+// the app up to date.
 
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell, session } = require('electron');
 const { spawn, execFile } = require('child_process');
@@ -12,6 +16,8 @@ const http = require('http');
 const net = require('net');
 const os = require('os');
 const path = require('path');
+const runtime = require('./runtime');
+const updater = require('./updater');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const APP_NAME = 'VoucherVisionLocal';
@@ -39,6 +45,11 @@ const externalUiUrl = parseLoopbackUrl(process.env.VVL_UI_URL);
 // Developer aid: a separate profile folder, so a test copy can run beside the
 // installed app (the single-instance lock is per profile folder).
 if (process.env.VVL_USER_DATA_DIR) app.setPath('userData', path.resolve(process.env.VVL_USER_DATA_DIR));
+// The installed app keeps Electron's own files beside the backend's data, so
+// everything VoucherVisionLocal stores for a user is in one folder (and on
+// macOS the two never mix in the same Application Support folder).
+else if (app.isPackaged) app.setPath('userData', path.join(runtime.dataHome(), 'electron'));
+const PACKAGED = app.isPackaged;
 
 let mainWindow = null;
 let backend = null; // {child, port, token, output: string[], exited: boolean}
@@ -47,6 +58,7 @@ let quitState = 'running'; // running | stopping | done
 let quitConfirmed = false; // the user agreed to quit while a download or install is running
 let askingToQuit = false;
 let exitCode = 0;
+let restartForUpdate = false; // the user clicked "Update ready"
 
 function parseLoopbackUrl(value) {
   if (!value) return null;
@@ -131,10 +143,22 @@ function outputTail(proc) {
   return proc.output.slice(-OUTPUT_TAIL_LINES).join('\n').split(proc.token).join('[session token]');
 }
 
-function spawnBackend(uv, port, token) {
-  const child = spawn(uv, ['run', '--project', REPO_ROOT, 'vvl', 'serve', '--port', String(port)], {
+function backendCommand(uv, port, token) {
+  const ours = { VVL_TOKEN: token, VVL_OWNER_PID: String(process.pid), VVL_PORT: String(port) };
+  if (PACKAGED) return runtime.backendCommand(process.resourcesPath, port, ours);
+  return {
+    command: uv,
+    args: ['run', '--project', REPO_ROOT, 'vvl', 'serve', '--port', String(port)],
     cwd: REPO_ROOT,
-    env: { ...process.env, VVL_TOKEN: token, VVL_OWNER_PID: String(process.pid), VVL_PORT: String(port), PYTHONUNBUFFERED: '1' },
+    env: { ...process.env, ...ours, PYTHONUNBUFFERED: '1' },
+  };
+}
+
+function spawnBackend(uv, port, token) {
+  const cmd = backendCommand(uv, port, token);
+  const child = spawn(cmd.command, cmd.args, {
+    cwd: cmd.cwd,
+    env: cmd.env,
     detached: process.platform !== 'win32', // its own process group, so the whole tree can be stopped
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -265,8 +289,8 @@ function quitAfterConfirm(proceed) {
 
 /** Start the backend on the first usable port. Resolves {port, token}. */
 async function startBackend() {
-  const uv = findUv();
-  if (!uv) {
+  const uv = PACKAGED ? null : findUv();
+  if (!PACKAGED && !uv) {
     throw new StartError('uv is not installed',
       'VoucherVisionLocal uses the uv tool to run its Python backend, and uv was not found on this computer.',
       'Install uv from https://docs.astral.sh/uv/ and start VoucherVisionLocal again.');
@@ -306,12 +330,79 @@ async function startBackend() {
     backend = null;
     if (outcome === 'foreign') continue; // something else took the port first; try the next one
     if (outcome === 'exited') {
-      if (proc.spawnError) throw new StartError('The backend could not be started', `Running uv failed: ${proc.spawnError.message}`, lastDetail);
+      if (proc.spawnError) throw new StartError('The backend could not be started', `${PACKAGED ? 'Starting Python' : 'Running uv'} failed: ${proc.spawnError.message}`, lastDetail);
       throw new StartError('The backend stopped while starting', 'The VoucherVisionLocal server exited before it was ready.', lastDetail);
     }
     throw new StartError('The backend did not start in time', `The VoucherVisionLocal server did not answer within ${Math.round(START_TIMEOUT_MS / 1000)} seconds.`, lastDetail);
   }
   throw new StartError('No free port', `Ports ${first} to ${first + PORT_ATTEMPTS - 1} are all in use.`, lastDetail);
+}
+
+// ---------------------------------------------------------------- Python environment (installed app)
+/** Change the start screen's text (loading.html). Best effort. */
+function setLoading(win, { title, detail, step } = {}) {
+  if (!win || win.isDestroyed()) return;
+  const set = (id, value) => (value === undefined ? '' : `document.getElementById(${JSON.stringify(id)}).textContent = ${JSON.stringify(String(value))};`);
+  win.webContents.executeJavaScript(`(() => { ${set('title', title)} ${set('detail', detail)} ${set('step', step)} return true; })()`, true).catch(() => {});
+}
+
+/** Install or update the Python environment before the first backend start, with progress on the start screen. */
+async function prepareRuntime(win) {
+  let needed;
+  try {
+    needed = runtime.needsSync(process.resourcesPath);
+  } catch (err) {
+    throw new StartError('This copy of VoucherVisionLocal is incomplete', `A file the app needs is missing (${err.message}).`, 'Download and install VoucherVisionLocal again.');
+  }
+  if (!needed) return;
+  const first = !fs.existsSync(runtime.layout(process.resourcesPath).venv);
+  setLoading(win, first
+    ? { title: 'Setting up VoucherVisionLocal', detail: 'The first start downloads Python and the packages VoucherVisionLocal uses (a few hundred MB). This takes a minute or two.', step: '' }
+    : { title: 'Updating VoucherVisionLocal', detail: 'This version uses updated Python packages. This takes a moment.', step: '' });
+  try {
+    await runtime.sync(process.resourcesPath, (step) => setLoading(win, { step }));
+  } catch (err) {
+    if (quitState !== 'running') return;
+    throw new StartError('Python could not be set up', err.message || 'Setting up Python failed.', err.detail || '');
+  }
+}
+
+// ---------------------------------------------------------------- updates (installed app)
+let updaterStarted = false;
+
+function sendToApp(channel, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!sameOrigin(mainWindow.webContents.getURL())) return;
+  mainWindow.webContents.send(channel, payload);
+}
+
+/** Check for an update once per launch, after the app page is showing. */
+function startUpdaterOnce() {
+  if (updaterStarted || screenshotDir) return;
+  updaterStarted = true;
+  updater.start({ onState: (s) => sendToApp('vvl:update-state', s), logDir: path.join(runtime.dataHome(), 'logs') });
+}
+
+/** Ask before restarting for an update while a batch, download or install is running. */
+async function confirmRestartForUpdate(batchRunning) {
+  const jobs = await runningJobs();
+  if (!batchRunning && !jobs.length) return true;
+  const download = jobs.find((j) => j.kind === 'model_download');
+  let message;
+  let detail;
+  if (batchRunning) {
+    message = 'A batch is still being processed';
+    detail = 'Restarting now stops the batch. You can also restart later: the update is installed the next time you quit.';
+  } else if (download) {
+    message = 'A download is still running';
+    detail = 'Restarting now pauses the download. It continues from where it stopped the next time you start it.';
+  } else {
+    message = 'The engine is still being installed';
+    detail = 'Restarting now stops the install, and it has to be started again.';
+  }
+  const box = { type: 'question', title: 'Restart to update?', message, detail, buttons: ['Keep Working', 'Restart Now'], defaultId: 0, cancelId: 0, noLink: true };
+  const result = mainWindow && !mainWindow.isDestroyed() ? await dialog.showMessageBox(mainWindow, box) : await dialog.showMessageBox(box);
+  return result.response === 1;
 }
 
 // ---------------------------------------------------------------- pages
@@ -371,7 +462,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      additionalArguments: [`--vvl-app-version=${app.getVersion()}`],
+      additionalArguments: [`--vvl-app-version=${app.getVersion()}`, `--vvl-packaged=${PACKAGED ? 1 : 0}`],
     },
   });
 
@@ -419,12 +510,15 @@ async function launch() {
       url = externalUiUrl.href;
     } else {
       await stopBackend();
+      if (PACKAGED) await prepareRuntime(win);
+      if (quitState !== 'running') return;
       const started = await startBackend();
       if (!started || win.isDestroyed()) return;
       appOrigin = `http://127.0.0.1:${started.port}`;
       url = `${appOrigin}/?token=${encodeURIComponent(started.token)}`;
     }
     await win.loadURL(url);
+    startUpdaterOnce();
     if (screenshotDir) {
       await runScreenshots(win).catch((err) => {
         console.error(`[screenshots] failed: ${err && err.message}`);
@@ -613,9 +707,24 @@ function fromApp(event) {
   return Boolean(event.senderFrame && sameOrigin(event.senderFrame.url));
 }
 
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
+/**
+ * The single-instance lock. Right after an update the new version can start
+ * while the old one is still closing, so it waits a little for the lock then.
+ */
+async function acquireInstanceLock() {
+  const afterUpdate = process.env.VVL_AFTER_UPDATE === '1';
+  delete process.env.VVL_AFTER_UPDATE;
+  if (app.requestSingleInstanceLock()) return true;
+  if (!afterUpdate) return false;
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    await sleep(250);
+    if (app.requestSingleInstanceLock()) return true;
+  }
+  return false;
+}
+
+function setupApp() {
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -632,6 +741,15 @@ if (!app.requestSingleInstanceLock()) {
     if (!fromApp(event) || !mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose a folder', properties: ['openDirectory', 'createDirectory'] });
     return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
+  });
+  ipcMain.handle('vvl:update-state', (event) => (fromApp(event) ? updater.getState() : null));
+  ipcMain.handle('vvl:update-install', async (event, options) => {
+    if (!fromApp(event) || !updater.isReady() || quitState !== 'running') return false;
+    if (!(await confirmRestartForUpdate(Boolean(options && options.batchRunning)))) return false;
+    restartForUpdate = true;
+    quitConfirmed = true;
+    app.quit();
+    return true;
   });
 
   app.whenReady().then(() => {
@@ -652,8 +770,22 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     quitState = 'stopping';
+    runtime.cancel();
     stopBackend().catch(() => {}).finally(() => {
       quitState = 'done';
+      // A downloaded update is installed now: right away for "Update ready",
+      // otherwise as part of this normal quit.
+      if (exitCode === 0 && updater.isReady()) {
+        if (restartForUpdate) process.env.VVL_AFTER_UPDATE = '1';
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+        if (updater.installAndQuit({ relaunch: restartForUpdate })) {
+          // On macOS the updater quits the app itself once the update is in place.
+          if (process.platform === 'darwin') {
+            setTimeout(() => app.exit(0), 60000);
+            return;
+          }
+        }
+      }
       app.exit(exitCode);
     });
   });
@@ -666,3 +798,8 @@ if (!app.requestSingleInstanceLock()) {
     });
   }
 }
+
+acquireInstanceLock().then((locked) => {
+  if (locked) setupApp();
+  else app.quit();
+});

@@ -14,7 +14,8 @@ pytestmark = pytest.mark.usefixtures("no_network")
 
 def test_defaults_without_file(client, auth, vvl_env):
     body = client.get("/v1/settings", headers=auth).get_json()
-    assert set(body) == {"models_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter"}
+    assert set(body) == {"models_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup"}
+    assert body["setup"] == {"usage": None}
     assert body["generation"] == {
         "ocr": {"reasoning": "off", "strength": "high", "output_length": "standard", "image_detail": "standard"},
         "parse": {"reasoning": "off", "strength": "high", "output_length": "standard"}, "context": {}}
@@ -64,6 +65,10 @@ def test_partial_update_merges(client, auth, vvl_env, tmp_path):
     {"selection": {"parse": "local:not-a-build"}},
     {"selection": {"parse": "api:nobody:model"}},
     {"selection": {"other": "x"}},
+    {"setup": {"usage": "cloud"}},
+    {"setup": {"usage": True}},
+    {"setup": {"other": "x"}},
+    {"setup": "local"},
     [1, 2, 3],
 ])
 def test_rejected_updates(client, auth, vvl_env, payload):
@@ -119,6 +124,24 @@ def test_selection_route(client, auth):
     bad = client.put("/v1/selection", headers=auth, json={"ocr": ["api:vvgo:anything"]})
     assert bad.status_code == 400
     assert client.put("/v1/selection", headers=auth, json={"ocr": "demo:mock", "extra": 1}).status_code == 400
+
+
+@pytest.mark.parametrize("usage", ["openrouter", "local", "both"])
+def test_setup_usage_saved(client, auth, vvl_env, usage):
+    body = client.put("/v1/settings", headers=auth, json={"setup": {"usage": usage}}).get_json()
+    assert body["setup"] == {"usage": usage}
+    assert client.get("/v1/settings", headers=auth).get_json()["setup"] == {"usage": usage}
+    assert yaml.safe_load(vvl_env["VVL_SETTINGS_PATH"].read_text(encoding="utf-8"))["setup"] == {"usage": usage}
+    # null puts the question back.
+    body = client.put("/v1/settings", headers=auth, json={"setup": {"usage": None}}).get_json()
+    assert body["setup"] == {"usage": None}
+
+
+def test_setup_usage_invalid_on_disk_reads_as_null(vvl_env):
+    vvl_env["VVL_SETTINGS_PATH"].write_text(yaml.safe_dump({"setup": {"usage": "cloud"}}), encoding="utf-8")
+    assert settings.load()["setup"] == {"usage": None}
+    vvl_env["VVL_SETTINGS_PATH"].write_text(yaml.safe_dump({"setup": "both"}), encoding="utf-8")
+    assert settings.load()["setup"] == {"usage": None}
 
 
 def test_load_ignores_invalid_stored_values(vvl_env):

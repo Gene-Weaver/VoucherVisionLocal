@@ -34,6 +34,7 @@ def vvl_env(tmp_path, monkeypatch):
         monkeypatch.setenv(key, value)
     monkeypatch.delenv("VVL_TOKEN", raising=False)
     monkeypatch.delenv("VVL_OWNER_PID", raising=False)
+    monkeypatch.delenv("VVL_PACKAGED", raising=False)
     return {key: Path(value) for key, value in env.items()}
 
 

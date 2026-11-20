@@ -14,6 +14,8 @@ Shape (docs/API.md, GET/PUT /v1/settings):
                  gpu_devices: "auto" | [int, ...],
                  idle_stop_minutes: int (0 = never),
                  staged_batches: bool (batches run all OCR first, then all parsing)}
+    setup:      {usage: null | openrouter | local | both}  (the Setup page's
+                 "How will you run models?" answer; null until chosen)
 """
 
 from __future__ import annotations
@@ -37,9 +39,10 @@ logger = logging.getLogger(__name__)
 DEMO_MODEL_ID = "demo:mock"
 WFO_SOURCES = ("off", "vvgo", "local")
 THEMES = ("light", "dark", "system")
+SETUP_USAGES = ("openrouter", "local", "both")
 MAX_OCR_ENGINES = 4
 
-ALLOWED_KEYS = ("models_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter")
+ALLOWED_KEYS = ("models_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup")
 NESTED_KEYS = {
     "selection": ("ocr", "parse"),
     "enrichment": ("elevation", "wfo_source"),
@@ -47,6 +50,7 @@ NESTED_KEYS = {
     "engine": ("variant", "context_size", "parallel", "gpu_devices", "idle_stop_minutes", "staged_batches"),
     "generation": ("ocr", "parse", "context"),
     "openrouter": ("models", "concurrency", "private_only"),
+    "setup": ("usage",),
 }
 
 # OpenRouter (vvl/openrouter.py): the models added from the gallery, and how many
@@ -86,6 +90,8 @@ DEFAULTS: dict[str, Any] = {
         "context": {},
     },
     "openrouter": {"models": [], "concurrency": 4, "private_only": False},
+    # usage: how this computer runs models (openrouter | local | both); None until chosen.
+    "setup": {"usage": None},
 }
 
 _HEADER = """\
@@ -190,7 +196,20 @@ def _sanitize_loaded(settings: dict) -> dict:
         except SettingsError:
             orouter[key] = copy.deepcopy(DEFAULTS["openrouter"][key])
     clean["openrouter"] = orouter
+    block = clean.get("setup") if isinstance(clean.get("setup"), dict) else {}
+    try:
+        usage = _validate_setup_usage(block.get("usage"))
+    except SettingsError:
+        usage = None
+    clean["setup"] = {"usage": usage}
     return clean
+
+
+def _validate_setup_usage(value: Any):
+    if value is None or value in SETUP_USAGES:
+        return value
+    raise SettingsError(f"setup.usage must be null or one of: {', '.join(SETUP_USAGES)}.",
+                        {"field": "setup.usage", "allowed": list(SETUP_USAGES)})
 
 
 def _validate_openrouter_value(key: str, value: Any):
@@ -446,6 +465,14 @@ def validate_update(update: Any, validate_ids: Callable[[list[str], str], None] 
         if unknown:
             raise SettingsError("Unknown openrouter keys.", {"unknown_keys": unknown})
         changes["openrouter"] = {key: _validate_openrouter_value(key, value) for key, value in block.items()}
+    if "setup" in update:
+        block = update["setup"]
+        if not isinstance(block, dict):
+            raise SettingsError("setup must be an object.", {"field": "setup"})
+        unknown = sorted(set(block) - set(NESTED_KEYS["setup"]))
+        if unknown:
+            raise SettingsError("Unknown setup keys.", {"unknown_keys": unknown})
+        changes["setup"] = {key: _validate_setup_usage(value) for key, value in block.items()}
     return changes
 
 

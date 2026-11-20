@@ -36,6 +36,11 @@ node_modules/
 desktop/dist/
 desktop/build/
 desktop/out/
+desktop/.stage/
+
+# ---- release signing secrets (deploy.sh reads them on the Mac) ----
+.env.signing
+!.env.signing.example
 
 # ---- OS / editors ----
 .DS_Store

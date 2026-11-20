@@ -4,14 +4,93 @@
   "description": "Desktop shell for VoucherVisionLocal",
   "private": true,
   "main": "main.js",
+  "desktopName": "vouchervisionlocal.desktop",
   "scripts": {
     "start": "node launch.js",
-    "screenshots": "node launch.js --screenshots"
+    "screenshots": "node launch.js --screenshots",
+    "stage": "node scripts/sync-version.js && node scripts/stage.js",
+    "build:only": "electron-builder --publish never",
+    "dist": "npm run stage && electron-builder --publish never",
+    "pack": "npm run stage && electron-builder --publish never --dir"
   },
   "author": "Will Weaver",
   "license": "AGPL-3.0-only",
   "devDependencies": {
     "electron": "45.4.1",
     "electron-builder": "26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  },
+  "build": {
+    "appId": "com.vouchervision.local",
+    "productName": "VoucherVisionLocal",
+    "artifactName": "VoucherVisionLocal-${version}-${arch}.${ext}",
+    "copyright": "Copyright (C) Will Weaver. Licensed under the GNU AGPL v3.",
+    "directories": {
+      "output": "build",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "runtime.js",
+      "updater.js",
+      "loading.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".stage/backend",
+        "to": "backend"
+      },
+      {
+        "from": ".stage/python",
+        "to": "python"
+      },
+      {
+        "from": ".stage/uv/${os}-${arch}",
+        "to": "uv"
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build-resources/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build-resources/entitlements.mac.plist",
+      "entitlementsInherit": "build-resources/entitlements.mac.plist",
+      "notarize": true
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build-resources/icon.png"
+    },
+    "nsis": {
+      "artifactName": "VoucherVisionLocal-Setup-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build-resources/icon.png",
+      "category": "Science",
+      "synopsis": "Herbarium label OCR and parsing on your own computer",
+      "syncDesktopName": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Gene-Weaver",
+      "repo": "VoucherVisionLocal"
+    }
   }
 }

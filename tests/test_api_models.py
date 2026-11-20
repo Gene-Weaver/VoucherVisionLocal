@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import sys
 import types
 
@@ -146,6 +147,8 @@ def test_app_route(client, auth, vvl_env):
     assert body["name"] == "VoucherVisionLocal"
     assert body["phase"] == 2
     assert body["from_source"] is True
+    assert body["python"] == platform.python_version()
+    assert body["packaged"] is False
     assert body["paths"]["private_file"] == str(vvl_env["VVL_PRIVATE_PATH"])
     assert body["paths"]["settings_file"] == str(vvl_env["VVL_SETTINGS_PATH"])
     assert body["paths"]["prompts_user"] == str(vvl_env["VVL_PROMPTS_USER_DIR"])
@@ -155,6 +158,13 @@ def test_app_route(client, auth, vvl_env):
     }
     assert set(body["feature_notes"]) == {"api_inference", "enrichment_wfo"}
     assert not vvl_env["VVL_PRIVATE_PATH"].exists()
+
+
+def test_app_route_packaged(client, auth, monkeypatch):
+    monkeypatch.setenv("VVL_PACKAGED", "1")
+    assert client.get("/v1/app", headers=auth).get_json()["packaged"] is True
+    monkeypatch.setenv("VVL_PACKAGED", "yes")
+    assert client.get("/v1/app", headers=auth).get_json()["packaged"] is False
 
 
 def test_engine_routes(client, auth, fake_system):

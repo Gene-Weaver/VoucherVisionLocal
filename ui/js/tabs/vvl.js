@@ -112,6 +112,8 @@ export async function mount(panel) {
         busy = value;
         for (const b of runButtons) b.disabled = value;
     }
+    // The desktop shell asks before restarting for an update while images are being processed.
+    if (window.vvlUi) window.vvlUi.batchRunning = () => busy;
 
     function runButton(label, handler) {
         const b = el('button', { type: 'button', class: 'button', onclick: handler }, label);
