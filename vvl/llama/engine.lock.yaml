@@ -1,0 +1,246 @@
+# Pinned llama.cpp engine.
+#
+# VoucherVisionLocal does not build or fork llama.cpp. It downloads one exact
+# upstream release build, verifies every file against the sha256 recorded here,
+# and runs its `llama-server` program.
+#
+# To move to a newer llama.cpp: regenerate this file from the GitHub release
+# metadata for the new tag, run the engine tests, and commit the result.
+#
+# Fields
+#   release.tag            upstream build tag
+#   release.stable_alias   upstream stable release that points at this build
+#   variants[]             one installable build per OS / CPU type / backend,
+#                          listed in preference order within each OS + CPU type
+#   variants[].requires    conditions for choosing the variant automatically
+#                          (nvidia_driver_min = lowest NVIDIA driver version;
+#                          glibc_min = lowest Linux C library version, e.g. 2.38
+#                          means Ubuntu 24.04 or newer)
+#   variants[].assets[]    files to download: kind `engine` (llama-server and its
+#                          libraries) and, for CUDA builds, kind `runtime` (the
+#                          NVIDIA CUDA runtime libraries that go beside it)
+#
+# sha256 values are the digests GitHub publishes for each release asset
+# (read 2026-11-19).
+
+version: 1
+release:
+  tag: b12359
+  stable_alias: v1.0.0
+  repository: https://github.com/ggml-org/llama.cpp
+  published_at: '2026-11-13T10:21:06Z'
+  license: MIT
+variants:
+- id: linux-x64-cuda13
+  os: linux
+  arch: x86_64
+  backend: cuda
+  label: Linux x64, NVIDIA CUDA 13
+  requires:
+    nvidia_driver_min: '580.0'
+    glibc_min: '2.38'
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-cuda-13.5-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-cuda-13.5-x64.tar.gz
+    size_bytes: 178419847
+    sha256: 9440f417615bed0e191acef03bff0249117d2be74335358265a6d28475a9baf0
+  - kind: runtime
+    name: cudart-llama-b12359-bin-ubuntu-cuda-13.5-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/cudart-llama-b12359-bin-ubuntu-cuda-13.5-x64.tar.gz
+    size_bytes: 444078822
+    sha256: 976a9146bb8a487a6ea701224d7fb14b05e494ab3c8f5c1799ffc4e5805d640c
+- id: linux-x64-cuda12
+  os: linux
+  arch: x86_64
+  backend: cuda
+  label: Linux x64, NVIDIA CUDA 12
+  requires:
+    nvidia_driver_min: '525.60'
+    glibc_min: '2.38'
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-cuda-12.8-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-cuda-12.8-x64.tar.gz
+    size_bytes: 199223370
+    sha256: 50c937bec5bbd9f74c99138034f7403283ee21f1943f2429d7b1e4c079eafc11
+  - kind: runtime
+    name: cudart-llama-b12359-bin-ubuntu-cuda-12.8-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/cudart-llama-b12359-bin-ubuntu-cuda-12.8-x64.tar.gz
+    size_bytes: 594371571
+    sha256: 75a12d227f44a391608992329241765343bd143ee9445b90dc62e154ee726e5d
+- id: linux-x64-vulkan
+  os: linux
+  arch: x86_64
+  backend: vulkan
+  label: Linux x64, Vulkan
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-vulkan-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-vulkan-x64.tar.gz
+    size_bytes: 36153377
+    sha256: 19b60f00395a3f4954e46a5037695bc1d843404fc9d3124f82a612ecd8fbe9f0
+- id: linux-x64-cpu
+  os: linux
+  arch: x86_64
+  backend: cpu
+  label: Linux x64, CPU
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-x64.tar.gz
+    size_bytes: 23311084
+    sha256: 0bc1f091e8916102b6d8f2cf944233a620e90a0f856c72d0ce41150c65c2e72e
+- id: linux-arm64-cuda13
+  os: linux
+  arch: arm64
+  backend: cuda
+  label: Linux ARM64, NVIDIA CUDA 13
+  requires:
+    nvidia_driver_min: '580.0'
+    glibc_min: '2.38'
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-cuda-13.5-arm64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-cuda-13.5-arm64.tar.gz
+    size_bytes: 173529798
+    sha256: e12fd3ca9a599349cac5ec767825e17f8cab9dc2dab8d8e5b85d50ce21ef6d7d
+  - kind: runtime
+    name: cudart-llama-b12359-bin-ubuntu-cuda-13.5-arm64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/cudart-llama-b12359-bin-ubuntu-cuda-13.5-arm64.tar.gz
+    size_bytes: 559874231
+    sha256: 998f62318999710d398dad40821d1d037731f360791e41628d9dfcde207909d1
+- id: linux-arm64-vulkan
+  os: linux
+  arch: arm64
+  backend: vulkan
+  label: Linux ARM64, Vulkan
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-vulkan-arm64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-vulkan-arm64.tar.gz
+    size_bytes: 29435221
+    sha256: 3f8ae812a58ac92e5a596ca9fbc988f52854d147c5a7fe1264dddc90c1d085b4
+- id: linux-arm64-cpu
+  os: linux
+  arch: arm64
+  backend: cpu
+  label: Linux ARM64, CPU
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-ubuntu-arm64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-ubuntu-arm64.tar.gz
+    size_bytes: 18949862
+    sha256: dc7aa17a67884619b7223870aca9fd6addbc01717713b04a714add1c31137359
+- id: macos-arm64-metal
+  os: macos
+  arch: arm64
+  backend: metal
+  label: macOS Apple Silicon, Metal
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-macos-arm64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-macos-arm64.tar.gz
+    size_bytes: 16907811
+    sha256: 82b00abc740160e1b9980e6cc79c117345fa34af058c80e6c0a69aa8ddccde75
+- id: macos-x64-cpu
+  os: macos
+  arch: x86_64
+  backend: cpu
+  label: macOS Intel, CPU
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-macos-x64.tar.gz
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-macos-x64.tar.gz
+    size_bytes: 12661621
+    sha256: 25320d529077ef5a3d16e7b5da26438f221d88c8c0930a32b0c79457f5eede56
+- id: windows-x64-cuda13
+  os: windows
+  arch: x86_64
+  backend: cuda
+  label: Windows x64, NVIDIA CUDA 13
+  requires:
+    nvidia_driver_min: '580.0'
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-win-cuda-13.5-x64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-cuda-13.5-x64.zip
+    size_bytes: 179546112
+    sha256: 1de9ca1ff408d6e348ea0007c6880ad2393311a02e7799bcde26dc16daef03dd
+  - kind: runtime
+    name: cudart-llama-bin-win-cuda-13.5-x64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/cudart-llama-bin-win-cuda-13.5-x64.zip
+    size_bytes: 426314199
+    sha256: c2bf4cc202bfbaaa7a0b75f5082457c3811326947bb216059b72839d844e9cba
+- id: windows-x64-cuda12
+  os: windows
+  arch: x86_64
+  backend: cuda
+  label: Windows x64, NVIDIA CUDA 12
+  requires:
+    nvidia_driver_min: '525.60'
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-win-cuda-12.4-x64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-cuda-12.4-x64.zip
+    size_bytes: 318976332
+    sha256: e9c0abf442e8339c06728366c1ad2c711332f9939c0c00603fb75d85fd44c914
+  - kind: runtime
+    name: cudart-llama-bin-win-cuda-12.4-x64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/cudart-llama-bin-win-cuda-12.4-x64.zip
+    size_bytes: 391443627
+    sha256: 8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6
+- id: windows-x64-vulkan
+  os: windows
+  arch: x86_64
+  backend: vulkan
+  label: Windows x64, Vulkan
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-win-vulkan-x64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-vulkan-x64.zip
+    size_bytes: 38090643
+    sha256: e8d18c6e4210cca87e7307c2ea78363ac8d158e4e1397358ec96ab70b53a0d5e
+- id: windows-x64-cpu
+  os: windows
+  arch: x86_64
+  backend: cpu
+  label: Windows x64, CPU
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-win-cpu-x64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-cpu-x64.zip
+    size_bytes: 25097509
+    sha256: 837c1655e87df3b66989f4be33a792a1399c785bf259038dc75c900096683e69
+- id: windows-arm64-vulkan
+  os: windows
+  arch: arm64
+  backend: vulkan
+  label: Windows ARM64, Vulkan
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-win-vulkan-arm64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-vulkan-arm64.zip
+    size_bytes: 26027698
+    sha256: 62cd50089cffdd825524a91c5a8819041eb75d8e2beacd6eca68194dba50574f
+- id: windows-arm64-cpu
+  os: windows
+  arch: arm64
+  backend: cpu
+  label: Windows ARM64, CPU
+  requires: {}
+  assets:
+  - kind: engine
+    name: llama-b12359-bin-win-cpu-arm64.zip
+    url: https://github.com/ggml-org/llama.cpp/releases/download/b12359/llama-b12359-bin-win-cpu-arm64.zip
+    size_bytes: 13455326
+    sha256: d27564c754478d2832789dfcebfc5ace018e36a224c41d810b7cbc1ba8243ec0

@@ -1,0 +1,32 @@
+{
+  "driver_not_loaded": {
+    "returncode": 9,
+    "stdout": "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.\n\n",
+    "stderr": "",
+    "state": "driver_not_loaded"
+  },
+  "driver_mismatch": {
+    "returncode": 18,
+    "stdout": "Failed to initialize NVML: Driver/library version mismatch\nNVML library version: 550.127\n",
+    "stderr": "",
+    "state": "driver_mismatch"
+  },
+  "no_devices": {
+    "returncode": 6,
+    "stdout": "No devices were found\n",
+    "stderr": "",
+    "state": "no_devices"
+  },
+  "nvml_unknown": {
+    "returncode": 255,
+    "stdout": "",
+    "stderr": "Failed to initialize NVML: Unknown Error\n",
+    "state": "nvml_error"
+  },
+  "legacy_field": {
+    "returncode": 2,
+    "stdout": "Field \"compute_cap\" is not a valid field to query.\n\n",
+    "stderr": "",
+    "state": "error"
+  }
+}

@@ -1,0 +1,213 @@
+# Credential and API-provider registry.
+#
+# This file drives the "Keys" tab (one card per entry) and the "API" half of the
+# "Models" tab. Adding another OpenAI-compatible platform is one new entry here:
+# no code changes.
+#
+# Fields
+#   id            stable id; also the key under `credentials:` in PRIVATE.yaml
+#   label         name shown on the card
+#   role          model_provider | enrichment | downloads
+#   kind          how the service is called:
+#                   openai_compat  POST {base_url}/chat/completions, Bearer key
+#                   openrouter     OpenRouter (OpenAI-compatible, with a public model catalog)
+#                   gemini         Google Gemini native API
+#                   anthropic      Anthropic Messages API
+#                   vvgo           hosted VoucherVisionGO helper endpoints
+#                   huggingface    Hugging Face Hub (model downloads)
+#   purpose       one or two plain sentences shown on the card
+#   sends_images  true when specimen images leave this computer for this service
+#   base_url      API root
+#   key_url       where the user gets a key
+#   docs_url      provider documentation
+#   fields        secret fields stored in PRIVATE.yaml (name, label, placeholder)
+#   optional      true when the app is fully usable without this credential
+#   test          how the "Test" button checks a saved key (a cheap, free request):
+#                   method, url, auth (bearer | header:<Name> | query:<name>),
+#                   extra_headers, ok_status (list of HTTP codes meaning "key works")
+#   models        how the model list is obtained once a key is saved:
+#                   source: list_endpoint | catalog | none
+#                   (catalog: a public list the app caches itself; OpenRouter)
+#                   url, auth, extra_headers  (same meaning as in `test`)
+#                   id_path     where model ids live in the JSON response
+#                   strip_prefix  text removed from the front of each id
+#   enabled       false hides the provider until it is wired up
+#   brand_color   the company's brand color (#rrggbb); tints its group in the
+#                 model pickers
+
+version: 1
+
+providers:
+  - id: vvgo
+    label: VoucherVisionGO account
+    role: enrichment
+    kind: vvgo
+    purpose: >-
+      Lets VoucherVisionLocal use the data-enrichment helpers hosted by
+      VoucherVisionGO: World Flora Online name checks and elevation lookups.
+      Only the parsed text needed for the lookup is sent, never your images.
+    sends_images: false
+    optional: true
+    base_url: https://vouchervision-go-738307415303.us-central1.run.app
+    key_url: https://vouchervision-go-738307415303.us-central1.run.app/signup
+    docs_url: https://pypi.org/project/vouchervision-go-client/
+    fields:
+      - name: api_key
+        label: VoucherVisionGO API key
+        placeholder: Paste your VoucherVisionGO API key
+    test:
+      method: GET
+      url: "{base_url}/auth-check"
+      auth: "header:X-API-Key"
+      ok_status: [200]
+    models:
+      source: none
+    enabled: true
+
+  - id: gemini
+    label: Google Gemini
+    brand_color: '#4796E3'
+    role: model_provider
+    kind: gemini
+    purpose: >-
+      Runs OCR and label parsing on Google's Gemini models using your own
+      Google AI Studio key. Usage is billed by Google to your account.
+    sends_images: true
+    optional: true
+    base_url: https://generativelanguage.googleapis.com/v1beta
+    key_url: https://aistudio.google.com/apikey
+    docs_url: https://ai.google.dev/gemini-api/docs
+    fields:
+      - name: api_key
+        label: Gemini API key
+        placeholder: Paste your Google AI Studio key
+    test:
+      method: GET
+      url: "{base_url}/models"
+      auth: "query:key"
+      ok_status: [200]
+    models:
+      source: list_endpoint
+      url: "{base_url}/models"
+      auth: "query:key"
+      id_path: "models[].name"
+      strip_prefix: "models/"
+    enabled: true
+
+  - id: anthropic
+    label: Anthropic Claude
+    brand_color: '#D97757'
+    role: model_provider
+    kind: anthropic
+    purpose: >-
+      Runs OCR and label parsing on Anthropic's Claude models using your own
+      Anthropic API key. Usage is billed by Anthropic to your account.
+    sends_images: true
+    optional: true
+    base_url: https://api.anthropic.com/v1
+    key_url: https://console.anthropic.com/settings/keys
+    docs_url: https://docs.anthropic.com
+    fields:
+      - name: api_key
+        label: Anthropic API key
+        placeholder: Paste your Anthropic API key
+    test:
+      method: GET
+      url: "{base_url}/models"
+      auth: "header:x-api-key"
+      extra_headers:
+        anthropic-version: "2023-06-01"
+      ok_status: [200]
+    models:
+      source: list_endpoint
+      url: "{base_url}/models"
+      auth: "header:x-api-key"
+      extra_headers:
+        anthropic-version: "2023-06-01"
+      id_path: "data[].id"
+    enabled: true
+
+  - id: openai
+    label: OpenAI
+    brand_color: '#10A37F'
+    role: model_provider
+    kind: openai_compat
+    purpose: >-
+      Runs OCR and label parsing on OpenAI models using your own OpenAI API
+      key. Usage is billed by OpenAI to your account.
+    sends_images: true
+    optional: true
+    base_url: https://api.openai.com/v1
+    key_url: https://platform.openai.com/api-keys
+    docs_url: https://platform.openai.com/docs
+    fields:
+      - name: api_key
+        label: OpenAI API key
+        placeholder: Paste your OpenAI API key
+    test:
+      method: GET
+      url: "{base_url}/models"
+      auth: bearer
+      ok_status: [200]
+    models:
+      source: list_endpoint
+      url: "{base_url}/models"
+      auth: bearer
+      id_path: "data[].id"
+    enabled: true
+
+  - id: openrouter
+    label: OpenRouter
+    brand_color: '#6467F2'
+    role: model_provider
+    kind: openrouter
+    purpose: >-
+      One key for hosted models from every major family: Claude, GPT, Gemini,
+      Mistral, Qwen, and several hundred others. You pick the models on the
+      Models tab. Usage is billed by OpenRouter to your account, at each
+      model's own price.
+    sends_images: true
+    optional: true
+    base_url: https://openrouter.ai/api/v1
+    key_url: https://openrouter.ai/settings/keys
+    docs_url: https://openrouter.ai/docs
+    fields:
+      - name: api_key
+        label: OpenRouter API key
+        placeholder: Paste your OpenRouter key (starts with sk-or-)
+    test:
+      method: GET
+      url: "{base_url}/key"
+      auth: bearer
+      ok_status: [200]
+    # The model list is public and is browsed in the gallery on the Models tab
+    # (vvl/openrouter.py); the pickers show the models the user added there.
+    models:
+      source: catalog
+    enabled: true
+
+  - id: huggingface
+    label: Hugging Face
+    role: downloads
+    kind: huggingface
+    purpose: >-
+      Only needed to download local models whose authors require you to accept
+      a license on Hugging Face first ("gated" models). Most models in the
+      verified list download without it.
+    sends_images: false
+    optional: true
+    base_url: https://huggingface.co
+    key_url: https://huggingface.co/settings/tokens
+    docs_url: https://huggingface.co/docs/hub/security-tokens
+    fields:
+      - name: token
+        label: Hugging Face access token
+        placeholder: Paste a read-only token (starts with hf_)
+    test:
+      method: GET
+      url: "{base_url}/api/whoami-v2"
+      auth: bearer
+      ok_status: [200]
+    models:
+      source: none
+    enabled: true

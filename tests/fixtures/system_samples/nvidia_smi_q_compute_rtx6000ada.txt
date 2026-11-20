@@ -1,0 +1,11 @@
+
+==============NVSMI LOG==============
+
+Timestamp                                 : Thu Nov 19 14:28:23 2026
+Driver Version                            : 560.35.05
+CUDA Version                              : 12.6
+
+Attached GPUs                             : 2
+GPU 00000000:01:00.0
+    Compute Mode                          : Default
+

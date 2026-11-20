@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VVL model sweep</title>
+<!-- Template for tools/sweep_models.py; copied next to data.js as index.html. No network access. -->
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc;
+    --accent: #2f6f4f; --warn: #a15c00; --bad: #b3261e; --good: #2f6f4f; --chip: #efeee9;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161715; --panel: #1f201e; --ink: #e8e7e2; --muted: #9a9993; --line: #33342f;
+      --accent: #7cc49b; --warn: #e0a54a; --bad: #f08a80; --good: #7cc49b; --chip: #2a2b28;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding: 20px 24px 8px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; }
+  .muted { color: var(--muted); }
+  .wrap { padding: 0 24px 40px; }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; font-size: 13px; }
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .progress { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; margin: 6px 0 2px; }
+  .progress > div { height: 100%; background: var(--accent); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 8px 0; }
+  .controls label { display: inline-flex; gap: 6px; align-items: center; }
+  select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+                   border-radius: 6px; padding: 3px 8px; }
+  button.on { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap;
+           vertical-align: top; }
+  th { position: sticky; top: 0; background: var(--panel); cursor: pointer; user-select: none; font-weight: 600; }
+  th.l, td.l { text-align: left; }
+  tr:hover td { background: var(--chip); }
+  .bad { color: var(--bad); } .warn { color: var(--warn); } .good { color: var(--good); }
+  .chip { display: inline-block; padding: 0 6px; border-radius: 10px; background: var(--chip); font-size: 12px; }
+  .bar { display: inline-block; height: 8px; background: var(--accent); border-radius: 2px; vertical-align: middle;
+         margin-left: 6px; opacity: .75; }
+  .grid { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+  .imgbox img { width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+  .cfgpick { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 6px;
+             font-size: 12.5px; }
+  .cfgpick label { display: block; white-space: nowrap; }
+  .cols { display: grid; gap: 12px; grid-auto-flow: column; grid-auto-columns: minmax(320px, 1fr); overflow-x: auto; }
+  pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.4 var(--mono); margin: 0;
+        max-height: 420px; overflow: auto; background: var(--chip); padding: 8px; border-radius: 6px; }
+  td.val { text-align: left; white-space: normal; min-width: 160px; max-width: 360px; font-size: 12.5px; }
+  td.val.diff { background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  .small { font-size: 12px; }
+  .notes li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VoucherVisionLocal: local model sweep</h1>
+  <div class="muted" id="subtitle"></div>
+</header>
+<div class="wrap">
+  <div class="panel">
+    <dl class="meta" id="meta"></dl>
+    <div class="progress"><div id="bar" style="width:0"></div></div>
+    <div class="small muted" id="progress"></div>
+  </div>
+
+  <h2>Configurations</h2>
+  <div class="controls">
+    <span>Show</span>
+    <button data-filter="all" class="on">all</button>
+    <button data-filter="off">reasoning off</button>
+    <button data-filter="on">reasoning max</button>
+    <span class="muted small">Click a column to sort. "Hit limit" = the reply used every allowed output token
+      (usually a loop or unfinished reasoning).</span>
+  </div>
+  <div class="panel tablewrap"><table id="summary"></table></div>
+
+  <h2>Per image</h2>
+  <div class="grid">
+    <div>
+      <div class="controls"><label>Image <select id="imgsel"></select></label></div>
+      <div class="imgbox"><a id="imglink" target="_blank"><img id="img" alt="herbarium sheet"></a></div>
+      <h2 style="margin-top:14px">Compare</h2>
+      <div class="controls small">
+        <button id="pickoff">all off</button><button id="pickmax">all max</button><button id="picknone">none</button>
+      </div>
+      <div class="cfgpick" id="cfgpick"></div>
+    </div>
+    <div>
+      <div class="panel tablewrap"><table id="fields"></table></div>
+      <h2>OCR text</h2>
+      <div class="cols" id="ocrcols"></div>
+    </div>
+  </div>
+
+  <h2>Notes</h2>
+  <ul class="notes small" id="notes"></ul>
+</div>
+<script src="data.js"></script>
+<script>
+(function () {
+  "use strict";
+  const S = window.SWEEP;
+  const $ = (id) => document.getElementById(id);
+  function el(tag, attrs, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === undefined || v === null) continue;
+      if (k === "class") n.className = v; else if (k === "text") n.textContent = v;
+      else if (k === "style") n.setAttribute("style", v); else n.setAttribute(k, v);
+    }
+    for (const kid of kids) if (kid !== null && kid !== undefined)
+      n.appendChild(typeof kid === "string" || typeof kid === "number" ? document.createTextNode(String(kid)) : kid);
+    return n;
+  }
+  if (!S) { document.body.appendChild(el("p", {text: "data.js is missing."})); return; }
+  const H = S.header || {};
+  const rows = S.rows || [];
+  const nImages = (S.images || []).length;
+
+  $("subtitle").textContent = `${rows.length} configurations x ${nImages} images. Updated ${S.updated}.`;
+  const meta = [["Machine", `${H.host || ""}: ${(H.gpus || []).join("; ")}`], ["Engine", H.engine],
+                ["App version", H.vvl_version], ["Prompt", H.prompt], ["Images", H.images_dir],
+                ["Settings", H.settings], ["Method", H.method]];
+  for (const [k, v] of meta) { $("meta").appendChild(el("dt", {text: k})); $("meta").appendChild(el("dd", {text: v || "-"})); }
+  const doneImgs = rows.reduce((a, r) => a + (r.images_done || 0), 0);
+  const doneCfgs = rows.filter((r) => r.state === "done" || r.state === "failed").length;
+  $("bar").style.width = `${(100 * doneImgs / Math.max(1, rows.length * nImages)).toFixed(1)}%`;
+  const running = rows.find((r) => r.state === "partial");
+  $("progress").textContent = `${doneCfgs}/${rows.length} configurations finished, ${doneImgs}/${rows.length * nImages} image runs` +
+    (running ? `; running now: ${running.key}` : "");
+
+  // ------------------------------------------------------------ summary --
+  const fmt = (v, d = 1) => (v === null || v === undefined) ? "-" : (typeof v === "number" ? v.toFixed(d) : String(v));
+  const gb = (mib) => (mib / 1024).toFixed(1);
+  function layout(r) {
+    if (!r.engines || !r.engines.length) return "-";
+    return r.engines.map((e) => `GPU ${(e.gpu_devices || []).join("+")} x${e.parallel}`).join(", ");
+  }
+  function ctx(r) {
+    if (!r.engines || !r.engines.length) return "-";
+    const c = r.engines[0].context_size;
+    return c ? `${Math.round(c / 1024)}k` : "-";
+  }
+  function vram(r) {
+    const p = r.gpu_peak_mib || {}, b = r.gpu_baseline_mib || {};
+    let t = 0; for (const k of Object.keys(p)) t += Math.max(0, p[k] - (b[k] || 0));
+    return t ? gb(t) : null;
+  }
+  const maxRate = Math.max(1e-9, ...rows.map((r) => r.images_per_min || 0));
+  const cols = [
+    {k: "index", t: "#", v: (r) => r.index},
+    {k: "label", t: "Model", l: 1, v: (r) => r.label, s: (r) => r.label},
+    {k: "reasoning", t: "Reasoning", l: 1, v: (r) => r.reasoning === "on" ? `max (${r.strength || "on"})` : r.reasoning_note},
+    {k: "state", t: "State", l: 1, v: (r) => r.state, c: (r) => r.state === "failed" ? "bad" : r.state === "done" ? "good" : "muted"},
+    {k: "images_ok", t: "OK", v: (r) => `${r.images_ok}/${nImages}`, s: (r) => r.images_ok, c: (r) => r.errors ? "bad" : ""},
+    {k: "ocr_hit_limit", t: "OCR hit limit", v: (r) => r.ocr_hit_limit, c: (r) => r.ocr_hit_limit ? "warn" : ""},
+    {k: "parse_hit_limit", t: "Parse hit limit", v: (r) => r.parse_hit_limit, c: (r) => r.parse_hit_limit ? "warn" : ""},
+    {k: "empty_records", t: "Empty records", v: (r) => r.empty_records, c: (r) => r.empty_records ? "bad" : ""},
+    {k: "jouvea", t: "Jouvea test", v: (r) => !r.jouvea ? "-" : r.jouvea.pass ? "PASS" : "FAIL",
+     s: (r) => !r.jouvea ? null : (r.jouvea.pass ? 1 : 0),
+     c: (r) => !r.jouvea ? "" : r.jouvea.pass ? "good" : "bad"},
+    {k: "fields_filled_mean", t: "Fields filled", v: (r) => r.fields_filled_mean === null ? "-" : `${fmt(r.fields_filled_mean)} / ${r.fields_total}`, s: (r) => r.fields_filled_mean},
+    {k: "ocr_seconds_mean", t: "OCR s", v: (r) => fmt(r.ocr_seconds_mean)},
+    {k: "parse_seconds_mean", t: "Parse s", v: (r) => fmt(r.parse_seconds_mean)},
+    {k: "ocr_tokens_out_mean", t: "OCR tok", v: (r) => fmt(r.ocr_tokens_out_mean, 0)},
+    {k: "parse_tokens_out_mean", t: "Parse tok", v: (r) => fmt(r.parse_tokens_out_mean, 0)},
+    {k: "images_per_min", t: "Images/min", v: (r) => r.images_per_min, bar: 1},
+    {k: "tps", t: "Gen tok/s", v: (r) => fmt((r.engine_speed || {}).gen_tokens_per_s_median), s: (r) => (r.engine_speed || {}).gen_tokens_per_s_median},
+    {k: "batch_wall_seconds", t: "Batch min", v: (r) => r.batch_wall_seconds ? fmt(r.batch_wall_seconds / 60) : "-", s: (r) => r.batch_wall_seconds},
+    {k: "load_seconds", t: "Load s", v: (r) => fmt(r.load_seconds)},
+    {k: "layout", t: "Engines", l: 1, v: layout, s: (r) => r.concurrency},
+    {k: "ctx", t: "Context", v: ctx, s: (r) => r.engines && r.engines[0] ? r.engines[0].context_size : null},
+    {k: "vram", t: "VRAM GB", v: (r) => fmt(vram(r) === null ? null : Number(vram(r))), s: (r) => Number(vram(r))},
+  ];
+  let sortKey = "index", sortDir = 1, filter = "all";
+  function renderSummary() {
+    const t = $("summary"); t.textContent = "";
+    const head = el("tr");
+    for (const c of cols) {
+      const th = el("th", {class: c.l ? "l" : "", text: c.t + (sortKey === c.k ? (sortDir > 0 ? " ▲" : " ▼") : "")});
+      th.addEventListener("click", () => { if (sortKey === c.k) sortDir = -sortDir; else { sortKey = c.k; sortDir = 1; } renderSummary(); });
+      head.appendChild(th);
+    }
+    t.appendChild(el("thead", {}, head));
+    const body = el("tbody");
+    const col = cols.find((c) => c.k === sortKey);
+    const key = col.s || col.v;
+    const list = rows.filter((r) => filter === "all" || r.reasoning === filter).slice().sort((a, b) => {
+      const x = key(a), y = key(b);
+      if (x === y) return a.index - b.index;
+      if (x === null || x === undefined || Number.isNaN(x)) return 1;
+      if (y === null || y === undefined || Number.isNaN(y)) return -1;
+      return (x > y ? 1 : -1) * sortDir;
+    });
+    for (const r of list) {
+      const tr = el("tr", {title: r.failed ? `Failed: ${r.failed}` : r.key});
+      for (const c of cols) {
+        const td = el("td", {class: [c.l ? "l" : "", c.c ? c.c(r) : ""].join(" ").trim()});
+        const v = c.v(r);
+        if (c.bar) {
+          td.appendChild(document.createTextNode(fmt(v, 2)));
+          if (v) td.appendChild(el("span", {class: "bar", style: `width:${Math.round(60 * v / maxRate)}px`}));
+        } else td.textContent = v === null || v === undefined ? "-" : String(v);
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+    t.appendChild(body);
+  }
+  document.querySelectorAll("[data-filter]").forEach((b) => b.addEventListener("click", () => {
+    filter = b.dataset.filter;
+    document.querySelectorAll("[data-filter]").forEach((x) => x.classList.toggle("on", x === b));
+    renderSummary();
+  }));
+  renderSummary();
+
+  // ---------------------------------------------------------- per image --
+  const imgsel = $("imgsel");
+  (S.images || []).forEach((name) => imgsel.appendChild(el("option", {value: name, text: name.replace(/\.[^.]+$/, "")})));
+  const picked = new Set(rows.filter((r) => r.images_done).slice(0, 3).map((r) => r.key));
+  function renderPicker() {
+    const box = $("cfgpick"); box.textContent = "";
+    for (const r of rows) {
+      const cb = el("input", {type: "checkbox"});
+      cb.checked = picked.has(r.key);
+      cb.disabled = !r.images_done;
+      cb.addEventListener("change", () => { cb.checked ? picked.add(r.key) : picked.delete(r.key); renderImage(); });
+      box.appendChild(el("label", {class: r.images_done ? "" : "muted"}, cb, ` ${r.index}. ${r.label} · ${r.reasoning === "on" ? "max" : "off"}`));
+    }
+  }
+  $("pickoff").addEventListener("click", () => { picked.clear(); rows.filter((r) => r.images_done && r.reasoning === "off").forEach((r) => picked.add(r.key)); renderPicker(); renderImage(); });
+  $("pickmax").addEventListener("click", () => { picked.clear(); rows.filter((r) => r.images_done && r.reasoning === "on").forEach((r) => picked.add(r.key)); renderPicker(); renderImage(); });
+  $("picknone").addEventListener("click", () => { picked.clear(); renderPicker(); renderImage(); });
+
+  function renderImage() {
+    const name = imgsel.value;
+    const rel = (S.image_paths || {})[name] || `../images/${name}`;
+    const src = rel.split("/").map(encodeURIComponent).join("/");
+    $("img").src = src;
+    $("imglink").href = src;
+    const chosen = rows.filter((r) => picked.has(r.key));
+    const results = chosen.map((r) => ({r, res: ((S.results || {})[r.key] || {})[name]}));
+    // Field table: rows = fields, columns = configurations.
+    const t = $("fields"); t.textContent = "";
+    const fieldNames = [];
+    for (const {res} of results) if (res && res.record) for (const f of Object.keys(res.record)) if (!fieldNames.includes(f)) fieldNames.push(f);
+    const head = el("tr", {}, el("th", {class: "l", text: "Field"}));
+    for (const {r, res} of results) {
+      const th = el("th", {class: "l"});
+      th.appendChild(el("div", {text: `${r.label} · ${r.reasoning === "on" ? "max" : "off"}`}));
+      let sub = "not run yet";
+      if (res && res.ok) {
+        sub = `OCR ${fmt(res.ocr_seconds)} s / ${res.ocr_tokens_out} tok${res.ocr_hit_limit ? " (hit limit)" : ""} · ` +
+              `parse ${fmt(res.parse_seconds)} s / ${res.parse_tokens_out} tok${res.parse_hit_limit ? " (hit limit)" : ""}`;
+      } else if (res) sub = `error: ${res.error || "?"}`;
+      th.appendChild(el("div", {class: "small muted", style: "font-weight:400;white-space:normal", text: sub}));
+      head.appendChild(th);
+    }
+    t.appendChild(el("thead", {}, head));
+    const body = el("tbody");
+    if (!fieldNames.length) body.appendChild(el("tr", {}, el("td", {class: "l muted", text: results.length ? "No parsed record for this image in the chosen configurations yet." : "Pick configurations on the left."})));
+    for (const f of fieldNames) {
+      const vals = results.map(({res}) => (res && res.record && typeof res.record[f] === "string") ? res.record[f].trim() : "");
+      const distinct = new Set(vals.filter((v) => v));
+      const tr = el("tr", {}, el("td", {class: "l", text: f}));
+      vals.forEach((v) => tr.appendChild(el("td", {class: "val" + (distinct.size > 1 && v ? " diff" : ""), text: v || "—"})));
+      body.appendChild(tr);
+    }
+    t.appendChild(body);
+    // OCR text columns.
+    const oc = $("ocrcols"); oc.textContent = "";
+    for (const {r, res} of results) {
+      oc.appendChild(el("div", {class: "panel"},
+        el("div", {class: "small", style: "margin-bottom:6px;font-weight:600", text: `${r.label} · ${r.reasoning === "on" ? "max" : "off"}`}),
+        el("pre", {text: res ? (res.ok ? (res.ocr_text || "(empty)") : (res.error || "error")) : "not run yet"})));
+    }
+  }
+  imgsel.addEventListener("change", renderImage);
+  renderPicker();
+  renderImage();
+
+  // -------------------------------------------------------------- notes --
+  const notes = [
+    "Muse cannot turn reasoning off: its 'off' run reasons at strength low, with the reasoning-on output token limits. Its upper run uses strength medium (not xhigh) to save time.",
+    "Image detail is high (up to 8,192 visual tokens) for every model that has the control (Qwen3-VL, Qwen3.5/3.6, MiMo); Gemma 4 and Muse do not.",
+    "Jouvea test (from VoucherVisionGO's Thinking Budget Testing): PASS when the parsed scientificName contains 'Jouvea' (Distichlis spicata is the tempting wrong answer). Run on the local full-resolution copy of MICH-V-1122841.",
+    "Qwen3-VL Instruct builds have no reasoning mode, so they have only the 'off' run.",
+    "'max' = reasoning on at the highest level the model offers (Muse: medium, by choice). With automatic context this is the largest window that fits one request slot, so reasoning runs usually process one image per engine at a time.",
+    "Times are end to end through the app (label collage, request, JSON parsing); 'Images/min' is the 20-image batch wall time. Load time is not included in Images/min.",
+    "'Fields filled' counts non-empty fields in the parsed record; it measures completeness, not correctness.",
+    "Reasoning text is not kept by the app; only token counts are recorded.",
+  ];
+  for (const n of notes) $("notes").appendChild(el("li", {text: n}));
+})();
+</script>
+</body>
+</html>

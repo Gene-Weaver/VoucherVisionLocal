@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 164,
+  "os": {
+    "system": "Linux",
+    "name": "Fedora Linux 40 (Workstation Edition)",
+    "version": "40",
+    "kernel": "6.10.6-200.fc40.x86_64",
+    "arch": "x86_64",
+    "python_arch": "x86_64",
+    "is_translated": false,
+    "is_wsl": false,
+    "wsl_version": null,
+    "wsl_gpu_passthrough": null,
+    "is_apple_silicon": false,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "AMD Ryzen 9 7950X 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "physical_cores": 16,
+    "logical_cores": 32,
+    "max_mhz": 5881,
+    "features": {
+      "avx": true,
+      "avx2": true,
+      "avx512": true,
+      "fma": true,
+      "f16c": true,
+      "neon": false,
+      "avx_vnni": false,
+      "avx512_vnni": true,
+      "amx": false,
+      "sve": false,
+      "dotprod": false,
+      "i8mm": false
+    },
+    "features_source": "proc_cpuinfo"
+  },
+  "memory": {
+    "total_bytes": 66571993088,
+    "available_bytes": 52613349376,
+    "swap_total_bytes": 8589930496,
+    "swap_free_bytes": 8589930496
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "amd",
+      "name": "AMD Radeon RX 7900 XTX",
+      "kind": "discrete",
+      "vram_total_bytes": 25753026560,
+      "vram_free_bytes": 24679284736,
+      "driver_version": null,
+      "backend_hints": [
+        "vulkan"
+      ],
+      "source": "sysfs",
+      "details": {
+        "pci_bus_id": "0000:03:00.0",
+        "pci_vendor_id": "0x1002",
+        "pci_device_id": "0x744c",
+        "kernel_driver": "amdgpu",
+        "boot_vga": true,
+        "gtt_total_bytes": 33285996544,
+        "vulkan": true,
+        "pci_name": "AMD Radeon RX 7900 XT/7900 XTX/7900M"
+      }
+    },
+    {
+      "index": 1,
+      "vendor": "amd",
+      "name": "AMD Radeon Graphics",
+      "kind": "integrated",
+      "vram_total_bytes": 536870912,
+      "vram_free_bytes": 475004928,
+      "driver_version": null,
+      "backend_hints": [
+        "vulkan"
+      ],
+      "source": "sysfs",
+      "details": {
+        "pci_bus_id": "0000:13:00.0",
+        "pci_vendor_id": "0x1002",
+        "pci_device_id": "0x164e",
+        "kernel_driver": "amdgpu",
+        "boot_vga": false,
+        "gtt_total_bytes": 33285996544,
+        "dedicated_memory_bytes": 536870912,
+        "vulkan": true,
+        "pci_name": "AMD Raphael"
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": false,
+      "detail": "No NVIDIA GPU found.",
+      "state": "not_found",
+      "driver_version": null,
+      "cuda_version": null
+    },
+    "metal": {
+      "available": false,
+      "detail": "macOS only"
+    },
+    "vulkan": {
+      "available": true,
+      "detail": "AMD Radeon RX 7900 XTX (RADV NAVI31), AMD Radeon Graphics (RADV RAPHAEL_MENDOCINO) (Vulkan 1.3.283)",
+      "devices": [
+        {
+          "name": "AMD Radeon RX 7900 XTX (RADV NAVI31)",
+          "type": "discrete",
+          "vendor_id": "0x1002",
+          "device_id": "0x744c",
+          "api_version": "1.3.278",
+          "driver_name": "radv"
+        },
+        {
+          "name": "AMD Radeon Graphics (RADV RAPHAEL_MENDOCINO)",
+          "type": "integrated",
+          "vendor_id": "0x1002",
+          "device_id": "0x164e",
+          "api_version": "1.3.278",
+          "driver_name": "radv"
+        },
+        {
+          "name": "llvmpipe (LLVM 18.1.6, 256 bits)",
+          "type": "cpu",
+          "vendor_id": "0x10005",
+          "device_id": "0x0000",
+          "api_version": "1.3.278",
+          "driver_name": "llvmpipe"
+        }
+      ]
+    }
+  },
+  "disk": {
+    "models_dir": "/home/alex/.local/share/VoucherVisionLocal/models",
+    "models_dir_source": "default",
+    "exists": false,
+    "checked_path": "/home/alex/.local/share",
+    "total_bytes": 1998678130688,
+    "free_bytes": 858993459200,
+    "is_synced_folder": false,
+    "synced_folder_hint": null,
+    "writable": true,
+    "filesystem": "btrfs",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "vulkan",
+    "backend_reason": "AMD GPU found; llama.cpp uses it through Vulkan.",
+    "gpu_memory_budget_bytes": 24722905498,
+    "cpu_memory_budget_bytes": 49928994816,
+    "tier": "high",
+    "summary": "AMD Radeon RX 7900 XTX (24 GB), 32 threads, 62 GB RAM",
+    "memory_mode": "discrete",
+    "gpu_indices": [
+      0
+    ]
+  },
+  "warnings": [
+    {
+      "code": "MODELS_DIR_MISSING",
+      "message": "The models folder does not exist yet. It is created on first download.",
+      "severity": "info"
+    }
+  ],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_nvidia",
+      "ok": true,
+      "duration_ms": 48,
+      "error": null
+    },
+    {
+      "name": "gpu_linux",
+      "ok": true,
+      "duration_ms": 20,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}

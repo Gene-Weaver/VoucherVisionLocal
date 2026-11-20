@@ -1,0 +1,184 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 164,
+  "os": {
+    "system": "Linux",
+    "name": "Ubuntu 22.04.5 LTS",
+    "version": "22.04",
+    "kernel": "6.8.0-138-generic",
+    "arch": "x86_64",
+    "python_arch": "x86_64",
+    "is_translated": false,
+    "is_wsl": false,
+    "wsl_version": null,
+    "wsl_gpu_passthrough": null,
+    "is_apple_silicon": false,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+    "vendor": "AuthenticAMD",
+    "physical_cores": 32,
+    "logical_cores": 64,
+    "max_mhz": 3600,
+    "features": {
+      "avx": true,
+      "avx2": true,
+      "avx512": false,
+      "fma": true,
+      "f16c": true,
+      "neon": false,
+      "avx_vnni": false,
+      "avx512_vnni": false,
+      "amx": false,
+      "sve": false,
+      "dotprod": false,
+      "i8mm": false
+    },
+    "features_source": "proc_cpuinfo"
+  },
+  "memory": {
+    "total_bytes": 540653092864,
+    "available_bytes": 464625541120,
+    "swap_total_bytes": 34359734272,
+    "swap_free_bytes": 26517172224
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "nvidia",
+      "name": "NVIDIA RTX 6000 Ada Generation",
+      "kind": "discrete",
+      "vram_total_bytes": 51527024640,
+      "vram_free_bytes": 48025829376,
+      "driver_version": "560.35.05",
+      "backend_hints": [
+        "cuda",
+        "vulkan"
+      ],
+      "source": "nvidia-smi",
+      "details": {
+        "nvidia_index": 0,
+        "uuid": "GPU-1b2e5c9a-0000-4000-8000-000000000001",
+        "pci_bus_id": "0000:01:00.0",
+        "pci_vendor_id": "0x10de",
+        "pci_device_id": "0x26b1",
+        "compute_capability": "8.9",
+        "vram_used_bytes": 2868903936
+      }
+    },
+    {
+      "index": 1,
+      "vendor": "nvidia",
+      "name": "NVIDIA RTX 6000 Ada Generation",
+      "kind": "discrete",
+      "vram_total_bytes": 51527024640,
+      "vram_free_bytes": 50881101824,
+      "driver_version": "560.35.05",
+      "backend_hints": [
+        "cuda",
+        "vulkan"
+      ],
+      "source": "nvidia-smi",
+      "details": {
+        "nvidia_index": 1,
+        "uuid": "GPU-cefc9b14-0000-4000-8000-000000000002",
+        "pci_bus_id": "0000:61:00.0",
+        "pci_vendor_id": "0x10de",
+        "pci_device_id": "0x26b1",
+        "compute_capability": "8.9",
+        "vram_used_bytes": 16777216
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": true,
+      "detail": "driver 560.35.05, CUDA 12.6",
+      "state": "ok",
+      "driver_version": "560.35.05",
+      "cuda_version": "12.6"
+    },
+    "metal": {
+      "available": false,
+      "detail": "macOS only"
+    },
+    "vulkan": {
+      "available": null,
+      "detail": "vulkaninfo not found (a Vulkan loader is installed, so Vulkan may work)",
+      "devices": []
+    }
+  },
+  "disk": {
+    "models_dir": "/datac/VoucherVisionLocal_Models",
+    "models_dir_source": "settings",
+    "exists": true,
+    "checked_path": "/datac/VoucherVisionLocal_Models",
+    "total_bytes": 11904377847808,
+    "free_bytes": 4321652998144,
+    "is_synced_folder": false,
+    "synced_folder_hint": null,
+    "writable": true,
+    "filesystem": "ext4",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "cuda",
+    "backend_reason": "2 NVIDIA GPUs with a working driver were found.",
+    "gpu_memory_budget_bytes": 98931887310,
+    "cpu_memory_budget_bytes": 405489819648,
+    "tier": "workstation",
+    "summary": "2x NVIDIA RTX 6000 Ada (48 GB each), 64 threads, 504 GB RAM",
+    "memory_mode": "discrete",
+    "gpu_indices": [
+      0,
+      1
+    ]
+  },
+  "warnings": [],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_nvidia",
+      "ok": true,
+      "duration_ms": 48,
+      "error": null
+    },
+    {
+      "name": "gpu_linux",
+      "ok": true,
+      "duration_ms": 20,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}

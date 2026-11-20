@@ -1,0 +1,54 @@
+# ---- secrets: never commit ----
+PRIVATE.yaml
+PRIVATE*.yaml
+!PRIVATE.example.yaml
+*.pem
+*.key
+.env
+.env.*
+
+# ---- machine-local settings ----
+settings.local.yaml
+
+# ---- user prompts ----
+prompts/user/*
+!prompts/user/.gitkeep
+
+# ---- runtime data (models and engine binaries live outside the repo) ----
+data/
+logs/
+outputs/
+*.gguf
+*.safetensors
+wfo_backbone.db
+
+# ---- Python ----
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# ---- Node / Electron ----
+node_modules/
+desktop/dist/
+desktop/build/
+desktop/out/
+
+# ---- OS / editors ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ---- benchmark images, results, and reports (local only) ----
+bench/
+benchmarks/
+
+# ---- design mockups (local only) ----
+scratch_designs/
+
+# ---- local planning notes ----
+TODO.html

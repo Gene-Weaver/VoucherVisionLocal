@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jouvea test on OpenRouter models</title>
+<style>
+  :root { --bg:#f8f9fa; --surface:#fff; --sunken:#f1f3f4; --border:#dcdfe3; --text:#24292f; --muted:#5b6672; --faint:#8a939e;
+          --good:#1a7f37; --good-soft:#e6f4ea; --bad:#b3261e; --bad-soft:#fdecea; --warn:#9a5b00; --warn-soft:#fff3e0; --track:#e6e9ec; --link:#1b6e20; }
+  :root[data-theme="dark"] { --bg:#0d0d0d; --surface:#141414; --sunken:#1b1b1b; --border:#303030; --text:#e3e3e3; --muted:#a8a8a8; --faint:#777;
+          --good:#7fd08f; --good-soft:rgba(102,187,106,.14); --bad:#ef9a9a; --bad-soft:rgba(239,83,80,.14); --warn:#ffb74d; --warn-soft:rgba(255,167,38,.14); --track:#2a2d2f; --link:#81c784; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 'Segoe UI',Tahoma,Verdana,sans-serif; color:var(--text); background:var(--bg); }
+  main { max-width:1500px; margin:0 auto; padding:22px 18px 80px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; } h2 { font-size:1.1rem; margin:26px 0 8px; }
+  p { margin:0 0 8px; } .lead { color:var(--muted); max-width:1000px; }
+  button, select, input { font:inherit; color:inherit; }
+  .top { display:flex; gap:12px; align-items:flex-start; } .top > div { flex:1; }
+  .btn { border:1px solid var(--border); background:var(--surface); border-radius:6px; padding:4px 11px; cursor:pointer; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin:16px 0; }
+  .tile { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 14px; }
+  .tile b { display:block; font-size:1.6rem; line-height:1.2; } .tile span { color:var(--muted); font-size:.86rem; }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:14px 0 10px; }
+  .controls input[type=text], .controls select { border:1px solid var(--border); background:var(--surface); border-radius:6px; padding:5px 9px; }
+  .controls label { color:var(--muted); font-size:.9rem; display:inline-flex; gap:6px; align-items:center; }
+  .wrap { overflow-x:auto; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; }
+  th, td { padding:6px 9px; border-bottom:1px solid var(--border); text-align:left; vertical-align:middle; }
+  thead th { background:var(--sunken); position:sticky; top:0; white-space:nowrap; z-index:1; }
+  th button { all:unset; cursor:pointer; } th[aria-sort] button { color:var(--link); font-weight:700; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr.main { cursor:pointer; } tr.main:hover td { background:var(--sunken); }
+  tr.base td { background:color-mix(in srgb, var(--sunken) 70%, transparent); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--c,#8a8f98); margin-right:6px; }
+  .name { font-weight:600; } .sub { color:var(--faint); font-size:.78rem; }
+  .badge { display:inline-block; border-radius:999px; padding:0 9px; font-size:.78rem; font-weight:700; border:1px solid; white-space:nowrap; }
+  .pass { color:var(--good); background:var(--good-soft); border-color:var(--good); }
+  .fail { color:var(--bad); background:var(--bad-soft); border-color:var(--bad); }
+  .err { color:var(--warn); background:var(--warn-soft); border-color:var(--warn); }
+  .tag { display:inline-block; border:1px solid var(--border); border-radius:4px; padding:0 6px; font-size:.74rem; color:var(--muted); margin-left:6px; }
+  .barcell { min-width:150px; }
+  .bar { height:10px; border-radius:0 4px 4px 0; background:var(--c,#8a8f98); min-width:2px; }
+  .bar.hatch { background:repeating-linear-gradient(45deg, var(--c) 0 3px, transparent 3px 7px); outline:1.5px solid var(--c); outline-offset:-1.5px; }
+  .track { background:var(--track); border-radius:0 4px 4px 0; height:10px; }
+  .barval { font-variant-numeric:tabular-nums; font-size:.84rem; display:flex; justify-content:space-between; gap:8px; }
+  .sci { max-width:230px; overflow-wrap:anywhere; }
+  tr.detail td { background:var(--sunken); padding:12px 16px; }
+  .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+  .dgrid h4 { margin:0 0 4px; font-size:.86rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font:12.5px/1.45 Consolas,Monaco,monospace; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:8px 10px; max-height:340px; overflow:auto; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--muted); font-size:.86rem; margin:6px 0 10px; align-items:center; }
+  .legend .bar { display:inline-block; width:34px; vertical-align:middle; margin-right:6px; border-radius:3px; }
+  .note { color:var(--muted); font-size:.86rem; max-width:1000px; }
+  .tabs { display:flex; gap:4px; border-bottom:2px solid var(--border); margin:18px 0 14px; }
+  .tabs button { border:1px solid var(--border); border-bottom:0; background:var(--sunken); border-radius:8px 8px 0 0; padding:7px 18px; cursor:pointer; font-weight:600; color:var(--muted); margin-bottom:-2px; }
+  .tabs button[aria-selected="true"] { background:var(--surface); color:var(--text); border-bottom:2px solid var(--surface); }
+  .mapbox { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px; display:grid; grid-template-columns:minmax(0, 760px) minmax(260px, 1fr); gap:18px; align-items:start; }
+  .mapbox svg { width:100%; height:auto; display:block; }
+  .ring { fill:none; stroke:var(--faint); stroke-width:1; stroke-dasharray:4 4; }
+  .ringlabel { fill:var(--text); font-size:11.5px; font-weight:600; paint-order:stroke; stroke:var(--surface); stroke-width:4px; stroke-linejoin:round; }
+  .dot.hollow { background:transparent; border:2px solid #4796E3; }
+  .axis { stroke:var(--border); stroke-width:1; }
+  .pair { stroke:var(--muted); stroke-width:1; opacity:.55; }
+  .pt { stroke:var(--surface); stroke-width:1.5; cursor:pointer; }
+  .pt.nr { fill:var(--surface); stroke-width:2.5; }
+  .pt:hover { stroke:var(--text); }
+  .rings td, .rings th { padding:4px 10px; }
+  .rings { width:auto; }
+  #tip { position:fixed; pointer-events:none; background:#263238; color:#fff; border-radius:6px; padding:6px 9px; font-size:12.5px; line-height:1.4; max-width:320px; z-index:9; }
+  @media (max-width: 1000px) { .mapbox { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><div>
+    <h1>Jouvea test on OpenRouter models</h1>
+    <p class="lead" id="lead"></p>
+  </div><button class="btn" id="theme" type="button">Light / dark</button></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tabBtnTable" aria-selected="true">Results table</button>
+    <button type="button" role="tab" id="tabBtnMap" aria-selected="false">GPS coordinates</button>
+  </div>
+  <section id="tabTable">
+  <div class="legend" id="legend"></div>
+  <div class="controls">
+    <input type="text" id="q" placeholder="Search model or owner" aria-label="Search">
+    <label>Owner <select id="owner"></select></label>
+    <label>Run <select id="run"><option value="">Both</option><option value="default">Default reasoning</option><option value="nr">No reasoning [NR]</option></select></label>
+    <label>Result <select id="result"><option value="">All</option><option value="pass">Pass</option><option value="fail">Fail</option><option value="error">Error</option></select></label>
+    <label><input type="checkbox" id="pin" checked> Keep the original Gemini runs on top</label>
+    <span class="sub" id="count"></span>
+  </div>
+  <p class="note" id="sortnote"></p>
+  <div class="wrap"><table>
+    <thead><tr id="head"></tr></thead>
+    <tbody id="body"></tbody>
+  </table></div>
+  <p class="note" id="foot"></p>
+  </section>
+  <section id="tabMap" hidden>
+    <p class="note" id="mapnote"></p>
+    <div class="mapbox"><div id="map"></div><div><h2 style="margin-top:4px">Models inside each ring</h2><div id="rings"></div><div class="legend" id="maplegend" style="margin-top:14px"></div></div></div>
+    <h2>Ranking by distance from the reference point</h2>
+    <div class="wrap"><table><thead><tr><th class="num">Rank</th><th>Model</th><th>Run</th><th class="num">Latitude</th><th class="num">Longitude</th><th class="num">Distance</th><th>Direction</th><th>Jouvea test</th></tr></thead><tbody id="gpsbody"></tbody></table></div>
+  </section>
+  <div id="tip" hidden></div>
+</main>
+<script>
+(function () {
+  'use strict';
+  const D = /*__DATA__*/null;
+  const root = document.documentElement;
+  root.dataset.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.getElementById('theme').onclick = () => { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; };
+
+  function h(tag, attrs, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else if (k === 'color') n.style.setProperty('--c', v); else if (k === 'width') n.style.width = v;
+      else n.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) n.appendChild(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+    return n;
+  }
+  const color = (r) => D.owner_colors[r.owner] || '#8a8f98';
+  const usd = (v) => (v === null || v === undefined ? '—' : v === 0 ? '$0' : v < 0.001 ? '$' + v.toFixed(5) : v < 0.1 ? '$' + v.toFixed(4) : '$' + v.toFixed(3));
+  const int = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en-US'));
+  const state = { sorts: [{ id: 'status', dir: 1 }, { id: 'cost', dir: 1 }], q: '', owner: '', result: '', run: '', pin: true, open: new Set() };
+  const rows = D.rows;
+  const ran = rows.filter((r) => !r.baseline && !r.nr);
+  const ranNr = rows.filter((r) => r.nr);
+  const status = (r) => (!r.ok ? 'error' : r.jouvea_pass ? 'pass' : 'fail');
+
+  // Linear scales: the smallest value in a column is an empty bar, the largest a full one.
+  function scale(key) {
+    const vals = rows.map((r) => r[key]).filter((v) => v !== null && v !== undefined && v > 0);
+    if (!vals.length) return () => 0;
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    return (v) => (!(v > 0) ? 0 : hi === lo ? 100 : 100 * (v - lo) / (hi - lo));
+  }
+  const scales = { cost: scale('cost'), total_seconds: scale('total_seconds'), reasoning_tokens: scale('reasoning_tokens') };
+  function bar(r, key, text) {
+    const v = r[key];
+    if (v === null || v === undefined) return h('span', { class: 'sub' }, 'not recorded');
+    return h('div', { title: text }, h('div', { class: 'barval' }, h('span', null, text)),
+      h('div', { class: 'track' }, h('div', { class: 'bar' + (r.baseline ? ' hatch' : ''), color: color(r), width: scales[key](v) + '%' })));
+  }
+
+  const COLS = [
+    ['name', 'Model', ''], ['status', 'Jouvea test', ''], ['ocr', 'Jouvea OCR', ''], ['scientificName', 'scientificName returned', ''],
+    ['cost', 'Cost for the sheet', ''], ['total_seconds', 'Time', ''], ['tokens_in', 'Tokens in', 'num'], ['tokens_out', 'Tokens out', 'num'],
+    ['reasoning_tokens', 'Reasoning tokens', ''], ['providers', 'Served by', ''],
+  ];
+  const sortValue = { name: (r) => r.name.toLowerCase(), status: (r) => ({ pass: 0, fail: 1, error: 2 }[status(r)]), scientificName: (r) => r.scientificName.toLowerCase(),
+    ocr: (r) => (r.ocr_read_name === true ? 0 : r.ocr_read_name === false ? (r.ocr_text ? 1 : 2) : 3), providers: (r) => (r.providers || []).join(',') };
+
+  function view() {
+    const q = state.q.trim().toLowerCase();
+    let list = rows.filter((r) => (!q || (r.name + ' ' + r.id + ' ' + r.owner_label).toLowerCase().includes(q))
+      && (!state.owner || r.owner === state.owner) && (!state.result || status(r) === state.result)
+      && (!state.run || r.baseline || (state.run === 'nr') === Boolean(r.nr)));
+    // Several columns at once: the first decides, the next breaks ties, and so on.
+    const getters = state.sorts.map(({ id, dir }) => ({ dir, get: sortValue[id] || ((r) => (r[id] === null || r[id] === undefined ? Infinity : r[id])) }));
+    list.sort((a, b) => {
+      for (const { get, dir } of getters) {
+        const x = get(a), y = get(b);
+        // Rows without a value stay at the bottom whichever way the column is sorted.
+        if (x === Infinity || y === Infinity) { if (x !== y) return x === Infinity ? 1 : -1; continue; }
+        if (x < y) return -dir;
+        if (x > y) return dir;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    if (state.pin) list = [...list.filter((r) => r.baseline), ...list.filter((r) => !r.baseline)];
+    return list;
+  }
+
+  function detail(r) {
+    const steps = Object.entries(r.steps || {});
+    const calls = steps.flatMap(([step, list]) => list.map((c) => ({ step, ...c })));
+    return h('tr', { class: 'detail' }, h('td', { colspan: COLS.length }, h('div', { class: 'dgrid' },
+      r.error ? h('div', null, h('h4', null, 'Error'), h('pre', null, r.error)) : null,
+      h('div', null, h('h4', null, 'What was sent and what came back'), h('pre', null, calls.length ? calls.map((c) =>
+        `${c.step.toUpperCase()}  HTTP ${c.http_status}  ${c.time || ''}\n  sent: ${JSON.stringify(c.sent)}\n  served by: ${c.provider || '—'} (${c.served_model || '—'})\n  finish: ${c.finish_reason || '—'}${c.native_finish_reason && c.native_finish_reason !== c.finish_reason ? ' (' + c.native_finish_reason + ')' : ''}\n  tokens: ${int(c.prompt_tokens)} in, ${int(c.completion_tokens)} out, ${int(c.reasoning_tokens)} reasoning\n  cost: ${usd(c.cost)}${c.error ? '\n  error: ' + (typeof c.error === 'string' ? c.error : JSON.stringify(c.error)) : ''}`).join('\n\n') : (r.notes || []).join('\n') || 'No requests were logged.')),
+      calls.some((c) => c.reasoning_text) ? h('div', null, h('h4', null, 'Reasoning returned'), h('pre', null, calls.filter((c) => c.reasoning_text).map((c) =>
+        `${c.step.toUpperCase()} (${int(c.reasoning_chars)} characters${c.reasoning_chars > c.reasoning_text.length ? ', start shown; the full text is in the log' : ''})\n${c.reasoning_text}`).join('\n\n'))) : null,
+      r.ocr_text ? h('div', null, h('h4', null, 'OCR text'), h('pre', null, r.ocr_text)) : null,
+      r.record ? h('div', null, h('h4', null, 'Parsed record'), h('pre', null, JSON.stringify(r.record, null, 1))) : null)));
+  }
+
+  function render() {
+    document.getElementById('head').replaceChildren(...COLS.map(([id, label, cls]) => {
+      const at = state.sorts.findIndex((x) => x.id === id);
+      const mine = at >= 0 ? state.sorts[at] : null;
+      const click = (e) => {
+        if (e.shiftKey) {              // add this column after the others, or flip it, keeping the rest
+          if (mine) mine.dir *= -1; else state.sorts.push({ id, dir: 1 });
+        } else if (mine && state.sorts.length === 1) mine.dir *= -1;
+        else state.sorts = [{ id, dir: mine ? mine.dir : 1 }];
+        render();
+      };
+      return h('th', { class: cls || null, scope: 'col', 'aria-sort': mine ? (mine.dir === 1 ? 'ascending' : 'descending') : null },
+        h('button', { type: 'button', title: 'Click to sort by this column. Shift-click to add it as a further sort.', onclick: click },
+          label + (mine ? (mine.dir === 1 ? ' ▲' : ' ▼') + (state.sorts.length > 1 ? String(at + 1) : '') : '')));
+    }));
+    document.getElementById('sortnote').replaceChildren(h('span', null, 'Sorted by ', state.sorts.map((x, i) => [i ? ', then ' : '', h('b', null, COLS.find((c) => c[0] === x.id)[1]), x.dir === 1 ? ' ▲' : ' ▼']),
+      '. Click a heading to sort by it alone; Shift-click headings to sort by several. ',
+      h('button', { type: 'button', class: 'btn', onclick: () => { state.sorts = [{ id: 'status', dir: 1 }, { id: 'cost', dir: 1 }]; render(); } }, 'Passes first, cheapest first')));
+    const list = view();
+    document.getElementById('count').textContent = `${list.length} of ${rows.length} rows`;
+    const out = [];
+    for (const r of list) {
+      const st = status(r);
+      out.push(h('tr', { class: 'main' + (r.baseline ? ' base' : ''), onclick: () => { state.open.has(r.id) ? state.open.delete(r.id) : state.open.add(r.id); render(); } },
+        h('td', null, h('div', { class: 'name' }, h('span', { class: 'dot', color: color(r) }), r.name, r.baseline ? h('span', { class: 'tag' }, 'original VVGO run') : null),
+          h('div', { class: 'sub' }, r.owner_label + (r.baseline ? '' : ' · ' + r.id.replace(' [NR]', '')) + (r.nr ? ' · reasoning ' + (r.reasoning_setting === 'none' ? 'off' : 'set to “' + (r.reasoning_setting || '?') + '”') : ''))),
+        h('td', null, h('span', { class: 'badge ' + (st === 'pass' ? 'pass' : st === 'fail' ? 'fail' : 'err') }, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : 'ERROR'),
+          (r.notes || []).length && !r.baseline ? h('div', { class: 'sub' }, r.notes.join('; ')) : null),
+        h('td', { title: 'PASS when the OCR text from this model contains “jouvea pilosa” (upper or lower case).' },
+          r.ocr_read_name === null || r.ocr_read_name === undefined ? h('span', { class: 'sub' }, r.baseline ? 'not recorded' : '—')
+            : h('span', { class: 'badge ' + (r.ocr_read_name ? 'pass' : (r.ocr_text ? 'fail' : 'err')) }, r.ocr_read_name ? 'PASS' : (r.ocr_text ? 'FAIL' : 'NO TEXT'))),
+        h('td', { class: 'sci' }, r.baseline ? h('span', { class: 'sub' }, 'contained “Jouvea”') : (r.scientificName || h('span', { class: 'sub' }, st === 'error' ? (r.error || '').slice(0, 90) : 'empty'))),
+        h('td', { class: 'barcell' }, bar(r, 'cost', usd(r.cost))),
+        h('td', { class: 'barcell' }, bar(r, 'total_seconds', r.total_seconds === null ? '' : r.total_seconds.toFixed(1) + ' s')),
+        h('td', { class: 'num' }, int(r.tokens_in)), h('td', { class: 'num' }, int(r.tokens_out)),
+        h('td', { class: 'barcell' }, r.reasoning_tokens ? bar(r, 'reasoning_tokens', int(r.reasoning_tokens)) : h('span', { class: 'sub' }, r.reasoning_supported === false ? 'model does not reason' : '0')),
+        h('td', null, (r.providers || []).join(', ') || h('span', { class: 'sub' }, '—'))));
+      if (state.open.has(r.id)) out.push(detail(r));
+    }
+    document.getElementById('body').replaceChildren(...out);
+  }
+
+  const pass = ran.filter((r) => status(r) === 'pass').length, errors = ran.filter((r) => status(r) === 'error').length;
+  const priced = [...ran, ...ranNr].filter((r) => r.cost > 0 && r.ok);
+  const cheapest = priced.filter((r) => r.jouvea_pass).sort((a, b) => a.cost - b.cost)[0];
+  document.getElementById('lead').textContent = `One herbarium sheet (${D.image}) sent to ${ran.length} OpenRouter models. PASS in “Jouvea test” means the parsed scientificName contains “Jouvea”, the determination slip, and not the printed “Distichlis spicata”. PASS in “Jouvea OCR” means that model's OCR text contains “jouvea pilosa”. Rows marked [NR] are the same model run again with reasoning turned off, or at the most minimal setting when it cannot be turned off. ${D.settings}`;
+  document.getElementById('tiles').replaceChildren(
+    h('div', { class: 'tile' }, h('b', null, `${pass} of ${ran.length}`), h('span', null, 'models passed with default reasoning')),
+    ranNr.length ? h('div', { class: 'tile' }, h('b', null, `${ranNr.filter((r) => status(r) === 'pass').length} of ${ranNr.length}`), h('span', null, 'passed with reasoning off [NR]')) : null,
+    h('div', { class: 'tile' }, h('b', null, ran.length - pass - errors), h('span', null, 'answered but failed the test')),
+    h('div', { class: 'tile' }, h('b', null, errors), h('span', null, 'gave an error')),
+    h('div', { class: 'tile' }, h('b', null, '$' + (D.spent_usd + (D.spent_nr_usd || 0)).toFixed(2)), h('span', null, D.spent_nr_usd ? `billed by OpenRouter: $${D.spent_usd.toFixed(2)} default + $${D.spent_nr_usd.toFixed(2)} no reasoning` : 'billed by OpenRouter for the whole test')),
+    h('div', { class: 'tile' }, h('b', null, cheapest ? usd(cheapest.cost) : '—'), h('span', null, cheapest ? `cheapest pass: ${cheapest.name}` : 'no passing model')));
+  const owners = [...new Map(rows.map((r) => [r.owner, r.owner_label])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  document.getElementById('owner').replaceChildren(h('option', { value: '' }, 'All'), ...owners.map(([id, label]) => h('option', { value: id }, label)));
+  document.getElementById('legend').replaceChildren(
+    h('span', null, h('span', { class: 'bar', color: '#4796E3' }), 'New run through OpenRouter (bar color is the owner)'),
+    h('span', null, h('span', { class: 'bar hatch', color: '#4796E3' }), 'Original Gemini run through VoucherVisionGO'),
+    h('span', null, 'Bar lengths are linear, from the smallest value in the column (empty) to the largest (full). Click a row for the request settings, reasoning, OCR text and record.'));
+  document.getElementById('foot').textContent = `Cost is what OpenRouter billed for the OCR and parsing requests of each model (usage.cost in its answers), including any retried request. The original Gemini rows come from the VoucherVisionGO thinking-budget table; their time was not recorded, and they read the sheet through VoucherVisionGO at the thinking level shown. Every request and full answer is in openrouter_exchanges.jsonl in this folder. Generated ${D.generated}.`;
+  if (D.running) {
+    document.getElementById('tiles').prepend(h('div', { class: 'tile' }, h('b', null, `${ran.length} of ${D.models_planned}`), h('span', null, 'models finished so far; this page reloads every minute')));
+    setTimeout(() => window.location.reload(), 60000);
+  }
+  // ------------------------------------------------------------ GPS tab
+  const TRUTH_ID = 'google/gemini-3.1-pro-preview';      // Gemini 3.1 Pro, default reasoning, through OpenRouter
+  const RINGS = [1, 10, 25, 50, 100];
+  const SVG = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs, ...kids) {
+    const n = document.createElementNS(SVG, tag);
+    for (const [k, v] of Object.entries(attrs || {})) if (v !== null && v !== undefined) n.setAttribute(k, v);
+    for (const kid of kids) if (kid !== null && kid !== undefined) n.appendChild(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+    return n;
+  }
+  function coords(r) {
+    const rec = r.record || {};
+    const lat = Number(String(rec.decimalLatitude ?? '').trim()), lon = Number(String(rec.decimalLongitude ?? '').trim());
+    if (!String(rec.decimalLatitude ?? '').trim() || !String(rec.decimalLongitude ?? '').trim()) return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    return { lat, lon };
+  }
+  const rad = (d) => d * Math.PI / 180;
+  function distanceKm(a, b) {
+    const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
+    return 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function bearing(a, b) {
+    const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat));
+    const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  const compass = (deg) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+  const km = (v) => (v < 1 ? (v * 1000).toFixed(0) + ' m' : v < 100 ? v.toFixed(1) + ' km' : Math.round(v).toLocaleString('en-US') + ' km');
+  const tip = document.getElementById('tip');
+  function showTip(e, lines) { tip.replaceChildren(...lines.flatMap((t, i) => (i ? [h('br'), t] : [t]))); tip.hidden = false; tip.style.left = Math.min(window.innerWidth - 330, e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; }
+
+  function renderMap() {
+    const truthRow = rows.find((r) => r.id === TRUTH_ID);
+    const truth = truthRow && coords(truthRow);
+    const note = document.getElementById('mapnote');
+    if (!truth) { note.textContent = 'The reference run (Gemini 3.1 Pro) has no coordinates yet, so the map cannot be drawn.'; return; }
+    const pts = rows.filter((r) => !r.baseline && coords(r)).map((r) => { const c = coords(r); const d = distanceKm(truth, c);
+      return { r, ...c, d, b: bearing(truth, c), key: r.id.replace(' [NR]', '') }; });
+    const skipped = rows.filter((r) => !r.baseline && !coords(r)).length;
+    // Distance from the center is on a log scale (0.1 km to the outer edge), so the 1 km ring and the
+    // 100 km ring are both readable. Direction is true: north is up.
+    const SIZE = 760, C = SIZE / 2, R = C - 34, LO = Math.log10(0.1), far = Math.max(1000, ...pts.map((p) => p.d));
+    const HI = Math.log10(far * 1.05);
+    const radius = (d) => (d <= 0.1 ? 0 : R * (Math.log10(d) - LO) / (HI - LO));
+    const xy = (p) => { const rr = radius(p.d), a = rad(p.b); return [C + rr * Math.sin(a), C - rr * Math.cos(a)]; };
+    const root = svg('svg', { viewBox: `0 0 ${SIZE} ${SIZE}`, role: 'img', 'aria-label': 'Coordinates given by each model, relative to the reference point' });
+    root.appendChild(svg('line', { class: 'axis', x1: C, y1: C - R, x2: C, y2: C + R }));
+    root.appendChild(svg('line', { class: 'axis', x1: C - R, y1: C, x2: C + R, y2: C }));
+    for (const [label, x, y] of [['N', C, C - R - 8], ['S', C, C + R + 18], ['E', C + R + 12, C + 4], ['W', C - R - 20, C + 4]]) root.appendChild(svg('text', { class: 'ringlabel', x, y, 'text-anchor': 'middle', 'font-weight': 700 }, label));
+    for (const ring of [...RINGS, 1000].filter((v) => v <= far * 1.05)) {
+      root.appendChild(svg('circle', { class: 'ring', cx: C, cy: C, r: radius(ring) }));
+    }
+    const groups = new Map();
+    for (const p of pts) { if (!groups.has(p.key)) groups.set(p.key, []); groups.get(p.key).push(p); }
+    for (const pair of groups.values()) if (pair.length === 2) { const [a, b] = pair.map(xy); root.appendChild(svg('line', { class: 'pair', x1: a[0], y1: a[1], x2: b[0], y2: b[1] })); }
+    for (const p of [...pts].sort((a, b) => b.d - a.d)) {
+      const [x, y] = xy(p), col = color(p.r);
+      const dot = svg('circle', { class: 'pt' + (p.r.nr ? ' nr' : ''), cx: x, cy: y, r: 5.5 });
+      if (p.r.nr) dot.style.stroke = col; else dot.style.fill = col;
+      dot.addEventListener('mousemove', (e) => showTip(e, [p.r.name, `${p.r.owner_label} · ${p.r.nr ? 'no reasoning' : 'default reasoning'}`, `${p.lat}, ${p.lon}`, `${km(p.d)} ${compass(p.b)} of the reference point`]));
+      dot.addEventListener('mouseleave', () => { tip.hidden = true; });
+      root.appendChild(dot);
+    }
+    root.appendChild(svg('path', { d: `M${C - 9},${C} L${C + 9},${C} M${C},${C - 9} L${C},${C + 9}`, stroke: 'var(--text)', 'stroke-width': 2.5 }));
+    // Ring labels go on top of the points, along the north-east diagonal where they do not collide.
+    for (const ring of [...RINGS, 1000].filter((v) => v <= far * 1.05)) {
+      const rr = radius(ring) * Math.SQRT1_2;
+      root.appendChild(svg('text', { class: 'ringlabel', x: C + rr + 3, y: C - rr - 3 }, ring.toLocaleString('en-US') + ' km'));
+    }
+    document.getElementById('map').replaceChildren(root);
+    note.textContent = `Reference point: ${truth.lat}, ${truth.lon}, the coordinates from Gemini 3.1 Pro with default reasoning in this OpenRouter run. The original VoucherVisionGO run of gemini-3.1-pro (low thinking) was not saved with its record, so its coordinates are not available. The label gives no coordinates (only “Isabel Island, E of Tres Marias Is.”, Nayarit), so every point is the model's own estimate. ${pts.length} runs gave usable coordinates; ${skipped} gave none and are left out. Distance from the center is on a log scale so that the 1 km and 100 km rings are both readable; direction is true, with north up. There is no base map.`;
+    const within = (lim) => pts.filter((p) => p.d <= lim).length;
+    const body = [...RINGS.map((lim, i) => [`Within ${lim} km`, within(lim), within(lim) - (i ? within(RINGS[i - 1]) : 0)]), ['Farther than 100 km', pts.length - within(100), pts.length - within(100)]];
+    document.getElementById('rings').replaceChildren(h('table', { class: 'rings' }, h('thead', null, h('tr', null, h('th', null, 'Ring'), h('th', { class: 'num' }, 'Runs inside'), h('th', { class: 'num' }, 'In this band only'))),
+      h('tbody', null, body.map(([label, total, band], i) => h('tr', null, h('td', null, label), h('td', { class: 'num' }, i < RINGS.length ? `${total} of ${pts.length}` : total), h('td', { class: 'num' }, band))))));
+    document.getElementById('maplegend').replaceChildren(
+      h('span', null, h('span', { class: 'dot', color: '#4796E3' }), 'Default reasoning (filled; color is the owner)'),
+      h('span', null, h('span', { class: 'dot hollow' }), 'No reasoning [NR] (hollow)'),
+      h('span', null, 'A line joins the two runs of the same model. The cross is the reference point.'));
+    const ranked = [...pts].sort((a, b) => a.d - b.d || a.r.name.localeCompare(b.r.name));
+    let rank = 0, last = null;
+    document.getElementById('gpsbody').replaceChildren(...ranked.map((p, i) => { if (last === null || p.d > last + 1e-9) rank = i + 1; last = p.d; const st = status(p.r);
+      return h('tr', { class: p.r.id === TRUTH_ID ? 'base' : null }, h('td', { class: 'num' }, rank),
+        h('td', null, h('span', { class: 'dot', color: color(p.r) }), h('span', { class: 'name' }, p.r.name), p.r.id === TRUTH_ID ? h('span', { class: 'tag' }, 'reference') : null, h('div', { class: 'sub' }, p.r.owner_label)),
+        h('td', null, p.r.nr ? 'No reasoning' : 'Default'), h('td', { class: 'num' }, p.lat), h('td', { class: 'num' }, p.lon), h('td', { class: 'num' }, km(p.d)),
+        h('td', null, p.d < 0.001 ? '—' : compass(p.b)), h('td', null, h('span', { class: 'badge ' + (st === 'pass' ? 'pass' : st === 'fail' ? 'fail' : 'err') }, st.toUpperCase()))); }));
+  }
+  function showTab(which) {
+    document.getElementById('tabTable').hidden = which !== 'table';
+    document.getElementById('tabMap').hidden = which !== 'map';
+    document.getElementById('tabBtnTable').setAttribute('aria-selected', String(which === 'table'));
+    document.getElementById('tabBtnMap').setAttribute('aria-selected', String(which === 'map'));
+    if (which === 'map') renderMap();
+    history.replaceState(null, '', which === 'map' ? '#gps' : '#');
+  }
+  document.getElementById('tabBtnTable').onclick = () => showTab('table');
+  document.getElementById('tabBtnMap').onclick = () => showTab('map');
+  if (location.hash === '#gps') showTab('map');
+  document.getElementById('q').oninput = (e) => { state.q = e.target.value; render(); };
+  document.getElementById('owner').onchange = (e) => { state.owner = e.target.value; render(); };
+  document.getElementById('run').onchange = (e) => { state.run = e.target.value; render(); };
+  document.getElementById('result').onchange = (e) => { state.result = e.target.value; render(); };
+  document.getElementById('pin').onchange = (e) => { state.pin = e.target.checked; render(); };
+  render();
+}());
+</script>
+</body>
+</html>

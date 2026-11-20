@@ -1,0 +1,64 @@
+[project]
+name = "vouchervision-local"
+dynamic = ["version"]
+description = "VoucherVisionLocal: run the VoucherVision OCR + label-parsing pipeline on your own computer, with a local llama.cpp engine or your own API keys."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { file = "LICENSE" }
+dependencies = [
+    # web server
+    "flask>=3.0",
+    "waitress>=3.0",
+    # HTTP clients (image fetching, provider calls, VVGO enrichment)
+    "requests>=2.32",
+    "httpx[http2]>=0.28",
+    # images and PDFs
+    "pillow>=10.4",
+    "pillow-heif>=0.18",
+    "pymupdf>=1.24",
+    # TextCollage label detector (OpenVINO, CPU)
+    "numpy>=1.26",
+    "opencv-python-headless>=4.10",
+    "openvino>=2024.4",
+    # prompts, config, records
+    "pyyaml>=6.0",
+    "pydantic>=2.8",
+    "openpyxl>=3.1",
+    # system checker
+    "psutil>=6.0",
+    "py-cpuinfo>=9.0",
+    "platformdirs>=4.2",
+]
+
+[project.optional-dependencies]
+# Optional local World Flora Online lookup (needs the 671 MB wfo_backbone.db download).
+wfo = [
+    "levenshtein>=0.25",
+    "fuzzywuzzy>=0.18",
+]
+
+[project.scripts]
+vvl = "vvl.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "VERSION"
+pattern = "(?P<version>.+)"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vvl", "textcollage"]
+include = [
+    "app.py",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,808 @@
+# Verified local models (run on this computer through llama.cpp).
+#
+# This file drives the "Local" half of the "Models" tab. Nothing here is
+# downloaded automatically: a model is fetched only when the user clicks
+# Download on its card and confirms the size.
+#
+# Sizes and sha256 values were read from the Hugging Face API (metadata only) on
+# 2026-11-19 at the revision recorded per build. They are re-verified after any
+# download.
+#
+# Fields
+#   families[].id / label / developer / license / summary
+#   families[].brand_color     the developer's brand color (#rrggbb); tints the
+#                          family's group in the model pickers
+#   families[].primary_family  true on one family: listed first in the model
+#                          pickers, with its group open
+#   families[].status     verified | planned   (planned = shown as "coming soon";
+#                          exact builds are added after they are confirmed)
+#   families[].roles      which pipeline steps the family can serve: ocr, parse
+#   builds[].id           stable id used in settings and API calls
+#   builds[].params       parameter count label
+#   builds[].quant        quantization label
+#   builds[].hf_repo / hf_revision
+#   builds[].files        model = language model file, mmproj = vision projector;
+#                          size_bytes and sha256 per file
+#   builds[].context_default   context window the engine is started with
+#   builds[].tier         small | medium | large  (rough guidance for the UI)
+#   builds[].default_for_test  true on the single build used for engine testing
+#   builds[].inference.kv_bytes_per_token  f16 KV-cache bytes per context token
+#                          (attention layers x KV heads x head size x 2 x 2), used
+#                          when the engine picks GPUs and sizes the context.
+#                          Models with sliding-window or linear-attention layers
+#                          count only their full-attention layers (read from
+#                          each GGUF header on 2026-11-19).
+#   builds[].inference / families[].inference   optional engine settings (keys
+#                          in vvl/llama/inference.py); a build's block overrides
+#                          its family's key by key. Context, image token bounds,
+#                          and server_args apply at the next engine start.
+#                          Sampling, reasoning, and output length per request
+#                          come from model_settings.json (vvl/generation.py).
+#
+# Builds are listed from least to most capable within a family; the
+# `recommended` flag in /v1/models picks the most capable one that fits a GPU.
+
+version: 1
+
+families:
+  - id: qwen3-vl
+    label: Qwen3-VL
+    brand_color: '#615CED'
+    primary_family: true
+    developer: Alibaba Qwen
+    license: apache-2.0
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      General-purpose vision-language model. Reads printed and handwritten
+      label text and can also parse the transcription into structured fields.
+    homepage: https://huggingface.co/Qwen
+    # Engine settings for every Qwen3-VL build (keys: vvl/llama/inference.py).
+    # Sampling, reasoning, and output length come from model_settings.json and
+    # the user's choices on the VVL tab (vvl/generation.py).
+    # 32B Q8 on one RTX 6000 Ada (Vulkan build): ~10 s OCR, ~24 s parse.
+    inference:
+      # Per request: image (up to image_max_tokens) + OCR prompt (~300) + reply
+      # (ocr.max_tokens) must fit, and so must the parse prompt (~1,700 for
+      # SLTPvM_default) + transcription + reply (parse.max_tokens).
+      context_size: 8192
+      # llama.cpp warns that Qwen-VL needs at least 1024 image tokens; 4096
+      # (about 4 megapixels at 32x32 px per token) reads small label print.
+      image_min_tokens: 1024
+      image_max_tokens: 4096
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: qwen3-vl-2b-q8
+        label: Qwen3-VL 2B (Q8)
+        params: 2B
+        quant: Q8_0
+        tier: small
+        hf_repo: Qwen/Qwen3-VL-2B-Instruct-GGUF
+        hf_revision: 52d6c8ffea26cc873ac5ad116f8631268d7eb503
+        context_default: 8192
+        inference: {kv_bytes_per_token: 114688}
+        files:
+          - role: model
+            path: Qwen3VL-2B-Instruct-Q8_0.gguf
+            size_bytes: 1834427424
+            sha256: 1e8db19207c8ce0733ddd78c2eff8a9e22c27c82f4443df94c25792ed8fe04f2
+          - role: mmproj
+            path: mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf
+            size_bytes: 445053216
+            sha256: f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82
+
+      - id: qwen3-vl-4b-q8
+        label: Qwen3-VL 4B (Q8)
+        params: 4B
+        quant: Q8_0
+        tier: small
+        hf_repo: Qwen/Qwen3-VL-4B-Instruct-GGUF
+        hf_revision: 1cd86afb9a95c410a6038ab3b40d8b578c892266
+        context_default: 8192
+        inference: {kv_bytes_per_token: 147456}
+        files:
+          - role: model
+            path: Qwen3VL-4B-Instruct-Q8_0.gguf
+            size_bytes: 4280406144
+            sha256: 054721f478bc5fa6beffb7f38eae575d45298f88cbb8d2f83ef675a727863eb1
+          - role: mmproj
+            path: mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf
+            size_bytes: 453974304
+            sha256: 30ba2c7dd3127a4561b6cba9d13d0f711c91bdb38742e2f56d73c8cb596bd06d
+
+      - id: qwen3-vl-8b-q4
+        label: Qwen3-VL 8B (Q4)
+        params: 8B
+        quant: Q4_K_M
+        tier: medium
+        hf_repo: Qwen/Qwen3-VL-8B-Instruct-GGUF
+        hf_revision: f982a07559d4a2f6c8744d840bf6fccab30eea96
+        context_default: 8192
+        inference: {kv_bytes_per_token: 147456}
+        files:
+          - role: model
+            path: Qwen3VL-8B-Instruct-Q4_K_M.gguf
+            size_bytes: 5027784800
+            sha256: 67d1659bfe71b89d50b45a4ad1a9e5b997e5bb16ce5da66a6a6167abd569e9e2
+          - role: mmproj
+            path: mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf
+            size_bytes: 752289728
+            sha256: c6ba85508d82f42590e6eb77d5340369ab6fecf107a7561d809523d8aa5f3bfd
+
+      - id: qwen3-vl-8b-q8
+        label: Qwen3-VL 8B (Q8)
+        params: 8B
+        quant: Q8_0
+        tier: medium
+        default_for_test: true
+        hf_repo: Qwen/Qwen3-VL-8B-Instruct-GGUF
+        hf_revision: f982a07559d4a2f6c8744d840bf6fccab30eea96
+        context_default: 8192
+        inference: {kv_bytes_per_token: 147456}
+        files:
+          - role: model
+            path: Qwen3VL-8B-Instruct-Q8_0.gguf
+            size_bytes: 8709519456
+            sha256: 0d264b3941185d00a74f75c4245521dae088ff1efc90ab8d1754e83f5844adb0
+          - role: mmproj
+            path: mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf
+            size_bytes: 752289728
+            sha256: c6ba85508d82f42590e6eb77d5340369ab6fecf107a7561d809523d8aa5f3bfd
+
+      - id: qwen3-vl-30b-a3b-q4
+        label: Qwen3-VL 30B-A3B (Q4)
+        params: 30B (3B active)
+        quant: Q4_K_M
+        tier: large
+        hf_repo: Qwen/Qwen3-VL-30B-A3B-Instruct-GGUF
+        hf_revision: f54435e6cc31258f04b0969105c3f6badb197931
+        context_default: 8192
+        inference: {kv_bytes_per_token: 98304}
+        files:
+          - role: model
+            path: Qwen3VL-30B-A3B-Instruct-Q4_K_M.gguf
+            size_bytes: 18556687168
+            sha256: 87bb374d849f80ebdfabb304189fac9e0bd35a0f74506e6a59c51b206cbe863b
+          - role: mmproj
+            path: mmproj-Qwen3VL-30B-A3B-Instruct-Q8_0.gguf
+            size_bytes: 712148928
+            sha256: 82a9966edfdbc1b18a27fd90af96d50cbf111a51484f6290e946dccf461c8150
+
+      - id: qwen3-vl-32b-q4
+        label: Qwen3-VL 32B (Q4)
+        params: 32B
+        quant: Q4_K_M
+        tier: large
+        hf_repo: Qwen/Qwen3-VL-32B-Instruct-GGUF
+        hf_revision: e3e1fe0c76de7ee58ea65db420c643adfe2e457c
+        context_default: 8192
+        inference: {kv_bytes_per_token: 262144}
+        files:
+          - role: model
+            path: Qwen3VL-32B-Instruct-Q4_K_M.gguf
+            size_bytes: 19762150432
+            sha256: 5cf0136e721d6294718ec71fd8c93b17ab5dd4e2714d6079e83fa46571ad94c8
+          - role: mmproj
+            path: mmproj-Qwen3VL-32B-Instruct-Q8_0.gguf
+            size_bytes: 772360224
+            sha256: c01734a97adc350c1eebb957ed433afee4e376ebd0949163f659c76d8dcf20ca
+
+      - id: qwen3-vl-32b-q8
+        label: Qwen3-VL 32B (Q8)
+        params: 32B
+        quant: Q8_0
+        tier: large
+        hf_repo: Qwen/Qwen3-VL-32B-Instruct-GGUF
+        hf_revision: e3e1fe0c76de7ee58ea65db420c643adfe2e457c
+        context_default: 8192
+        inference: {kv_bytes_per_token: 262144}
+        files:
+          - role: model
+            path: Qwen3VL-32B-Instruct-Q8_0.gguf
+            size_bytes: 34817720352
+            sha256: 936dcdc564cf9f907af80cc581c53e01a275725b29d06ad753b923c1463f6751
+          - role: mmproj
+            path: mmproj-Qwen3VL-32B-Instruct-Q8_0.gguf
+            size_bytes: 772360224
+            sha256: c01734a97adc350c1eebb957ed433afee4e376ebd0949163f659c76d8dcf20ca
+
+  # ---- Families tested by Will; exact builds are added later. ----
+  - id: qwen3-6
+    label: Qwen3.6
+    brand_color: '#615CED'
+    developer: Alibaba Qwen
+    license: apache-2.0
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      The generation after Qwen3-VL, with vision built into every model. The
+      35B-A3B build is a mixture-of-experts model with about 3B active
+      parameters per token.
+    homepage: https://huggingface.co/unsloth
+    # unsloth GGUF builds, sizes and sha256 read 2026-11-19. Not yet run in VoucherVisionLocal; settings follow Qwen3-VL.
+    inference:
+      context_size: 8192
+      image_min_tokens: 1024
+      image_max_tokens: 4096
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: qwen3.6-27b-q8
+        label: Qwen3.6 27B (Q8)
+        params: 27B
+        quant: Q8_0
+        tier: large
+        hf_repo: unsloth/Qwen3.6-27B-GGUF
+        hf_revision: 82d411acf4a06cfb8d9b073a5211bf410bfc29bf
+        context_default: 8192
+        inference: {kv_bytes_per_token: 65536}
+        files:
+          - role: model
+            path: Qwen3.6-27B-Q8_0.gguf
+            size_bytes: 28595763424
+            sha256: f93f517f38e696d35a1a7df2c0e3155a64f4c4dcd662107a146ae263f7fb14ce
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 927607360
+            sha256: eacf610d1ee4bd5ed0197a0777dd8f4fceb8eefa27009067c7d496cb68fbde45
+      - id: qwen3.6-35b-a3b-q4
+        label: Qwen3.6 35B-A3B (Q4)
+        params: 35B (3B active)
+        quant: UD-Q4_K_XL
+        tier: medium
+        hf_repo: unsloth/Qwen3.6-35B-A3B-GGUF
+        hf_revision: a483e9e6cbd595906af30beda3187c2663a1118c
+        context_default: 8192
+        inference: {kv_bytes_per_token: 20480}
+        files:
+          - role: model
+            path: Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+            size_bytes: 22360456160
+            sha256: 707a55a8a4397ecde44de0c499d3e68c1ad1d240d1da65826b4949d1043f4450
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 899283680
+            sha256: 8971ee4f331ff0a4c609374f32984b3d4e6dc086c0aa35f1d637fad1829e887f
+      - id: qwen3.6-35b-a3b-q8
+        label: Qwen3.6 35B-A3B (Q8)
+        params: 35B (3B active)
+        quant: Q8_0
+        tier: large
+        hf_repo: unsloth/Qwen3.6-35B-A3B-GGUF
+        hf_revision: a483e9e6cbd595906af30beda3187c2663a1118c
+        context_default: 8192
+        inference: {kv_bytes_per_token: 20480}
+        files:
+          - role: model
+            path: Qwen3.6-35B-A3B-Q8_0.gguf
+            size_bytes: 36903140320
+            sha256: d1a395809f65a43a13ad119eb4e7acdef1ac6d68120f39902c8ab96e72794a59
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 899283680
+            sha256: 8971ee4f331ff0a4c609374f32984b3d4e6dc086c0aa35f1d637fad1829e887f
+
+  - id: qwen3-5
+    label: Qwen3.5
+    brand_color: '#615CED'
+    developer: Alibaba Qwen
+    license: apache-2.0
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      Large Qwen3.5 mixture-of-experts model with vision (122B parameters,
+      about 10B active per token). Needs both 48 GB graphics cards.
+    homepage: https://huggingface.co/unsloth
+    # unsloth GGUF build (three parts), sizes and sha256 read 2026-11-19. Not yet run in VoucherVisionLocal.
+    inference:
+      context_size: 8192
+      image_min_tokens: 1024
+      image_max_tokens: 4096
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: qwen3.5-122b-a10b-q4
+        label: Qwen3.5 122B-A10B (Q4)
+        params: 122B (10B active)
+        quant: Q4_K_M
+        tier: large
+        hf_repo: unsloth/Qwen3.5-122B-A10B-GGUF
+        hf_revision: 51eab4d59d53f573fb9206cb3ce613f1d0aa392b
+        context_default: 8192
+        inference: {kv_bytes_per_token: 24576}
+        files:
+          - role: model
+            path: Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf
+            size_bytes: 10943552
+            sha256: 467c9bd92ea518539cf75bf5a5fbfbd35e9a0b40d766ccaa67bf120e12041df3
+          - role: model
+            path: Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00002-of-00003.gguf
+            size_bytes: 49968146912
+            sha256: 90db14846413aebdac365b57206441437cac5f7e5037d94b325f0167f902e6e7
+          - role: model
+            path: Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00003-of-00003.gguf
+            size_bytes: 26557874144
+            sha256: e3c24b8ebec070bb4f69ea0aca25a16531da7440cd515529953e046882901f97
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 908724960
+            sha256: 691af71bd41d437ce4a1d989f589c4b492237d702b33819ed8f897f9fae6e725
+
+  - id: ling
+    label: Ling
+    brand_color: '#1677FF'
+    developer: inclusionAI (Ant Group)
+    license: mit
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      Ling 3.0 Flash VL: a 125B-parameter mixture-of-experts vision model. It was the
+      cheapest hosted model to pass the Jouvea test. Needs both 48 GB graphics cards.
+    homepage: https://huggingface.co/inclusionAI/Ling-3.0-flash-VL
+    # bartowski GGUF builds; sizes and sha256 read from the Hugging Face API on 2026-11-20.
+    inference:
+      context_size: 8192
+      image_min_tokens: 1024
+      image_max_tokens: 4096
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: ling-3.0-flash-vl-iq4xs
+        label: Ling 3.0 Flash VL (IQ4_XS)
+        params: 125B (mixture of experts)
+        quant: IQ4_XS
+        tier: large
+        hf_repo: bartowski/Ling-3.0-flash-VL-GGUF
+        hf_revision: 2904b2b35bf3fde46a9f6740c92939aa32a5ba28
+        context_default: 8192
+        files:
+          - role: model
+            path: Ling-3.0-flash-VL-IQ4_XS/Ling-3.0-flash-VL-IQ4_XS-00001-of-00002.gguf
+            size_bytes: 40000056480
+            sha256: 2aa0a4dff1df756ebbb4f62fec4a47fb8bb8e9cde8e791c442ace19c5251dc28
+          - role: model
+            path: Ling-3.0-flash-VL-IQ4_XS/Ling-3.0-flash-VL-IQ4_XS-00002-of-00002.gguf
+            size_bytes: 29374226432
+            sha256: fd72377b7a8b8c01f495baa0a44280bff364c817a7497981fab3107cf9f74082
+          - role: mmproj
+            path: mmproj-Ling-3.0-flash-VL-f16.gguf
+            size_bytes: 874635328
+            sha256: fb5dc3d7978ca5d806353919fec689c47cc95998ee8846f82a38f67886d2c13c
+
+      - id: ling-3.0-flash-vl-q4
+        label: Ling 3.0 Flash VL (Q4)
+        params: 125B (mixture of experts)
+        quant: Q4_K_M
+        tier: large
+        hf_repo: bartowski/Ling-3.0-flash-VL-GGUF
+        hf_revision: 2904b2b35bf3fde46a9f6740c92939aa32a5ba28
+        context_default: 8192
+        files:
+          - role: model
+            path: Ling-3.0-flash-VL-Q4_K_M/Ling-3.0-flash-VL-Q4_K_M-00001-of-00002.gguf
+            size_bytes: 39487785120
+            sha256: 987fd5f84e32e98118fcd36a487680b7bf8b592a13ff5ec88ee84657bda66812
+          - role: model
+            path: Ling-3.0-flash-VL-Q4_K_M/Ling-3.0-flash-VL-Q4_K_M-00002-of-00002.gguf
+            size_bytes: 39173735424
+            sha256: fc264f78ca8e1046f3d86c38f24035f2cafe867720e0705467a658d49a6f8799
+          - role: mmproj
+            path: mmproj-Ling-3.0-flash-VL-f16.gguf
+            size_bytes: 874635328
+            sha256: fb5dc3d7978ca5d806353919fec689c47cc95998ee8846f82a38f67886d2c13c
+
+  - id: nemotron
+    label: Nemotron
+    brand_color: '#76B900'
+    developer: NVIDIA
+    license: openmdw-1.1
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      Nemotron 3.5 Super VL: a 120B-parameter mixture-of-experts vision model (about 12B
+      active per token). Needs both 48 GB graphics cards; the Q4 build is a tight fit.
+    homepage: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16
+    # DevQuasar GGUF builds; sizes and sha256 read from the Hugging Face API on 2026-11-20.
+    inference:
+      context_size: 8192
+      image_min_tokens: 1024
+      image_max_tokens: 4096
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: nemotron-3.5-super-vl-q3
+        label: Nemotron 3.5 Super VL (Q3)
+        params: 120B (12B active)
+        quant: Q3_K_M
+        tier: large
+        hf_repo: DevQuasar/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16-GGUF
+        hf_revision: 35cebb57bc7df81bfe499c598370d540e59fabe3
+        context_default: 8192
+        files:
+          - role: model
+            path: Q3_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q3_K_M.gguf-00001-of-00005.gguf
+            size_bytes: 13526392512
+            sha256: 55616e5d99d1ec1ec6040187429e5bd7193317493621d9d860966bd4c4c0b7b5
+          - role: model
+            path: Q3_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q3_K_M.gguf-00002-of-00005.gguf
+            size_bytes: 13942871616
+            sha256: fdac87f36473bf25174a6171230291882394f16ee207a29bdbcf4281993ca1d4
+          - role: model
+            path: Q3_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q3_K_M.gguf-00003-of-00005.gguf
+            size_bytes: 13262795808
+            sha256: 34d1eb26eab86b9c3fb508201de7f624dd547544e8e7750ac46bf2f009c77cb7
+          - role: model
+            path: Q3_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q3_K_M.gguf-00004-of-00005.gguf
+            size_bytes: 13280499040
+            sha256: a3805d084ab3de66a8d7a7789aea87ef341566856c0cb6ef4a3e78eed74e9dd4
+          - role: model
+            path: Q3_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q3_K_M.gguf-00005-of-00005.gguf
+            size_bytes: 13215437760
+            sha256: 8cebf589ed25bf7afff5147c6148fa34dd437a1b7e69f8200e6d4486e1587147
+          - role: mmproj
+            path: mmproj-nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf
+            size_bytes: 1727798656
+            sha256: 64d25098db7ec3d53f12ddbd5f57e790a07096ee9963815236ad46749fbaa1cf
+
+      - id: nemotron-3.5-super-vl-q4
+        label: Nemotron 3.5 Super VL (Q4)
+        params: 120B (12B active)
+        quant: Q4_K_M
+        tier: large
+        hf_repo: DevQuasar/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16-GGUF
+        hf_revision: 35cebb57bc7df81bfe499c598370d540e59fabe3
+        context_default: 8192
+        files:
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00001-of-00007.gguf
+            size_bytes: 13804706048
+            sha256: a4db5b412f80af40d420ea49d8764ba82ac17a4a17f111472a745a13c2ade76c
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00002-of-00007.gguf
+            size_bytes: 12609716640
+            sha256: 39b63aa618cf49063ecb30428911b8f072f0ce40ac93beb80aadbd3f6aa0c6b3
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00003-of-00007.gguf
+            size_bytes: 13785592032
+            sha256: 6c446d89296cecc47ebd1a780e8f8b40900dd84554174b5e8be78d3119d147af
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00004-of-00007.gguf
+            size_bytes: 13123805312
+            sha256: a49940b215094df0deaade36af88024a82bce2a0c7b25cf30d45d3f64f642ddd
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00005-of-00007.gguf
+            size_bytes: 13805662720
+            sha256: 327b20cef3b919555255f99af8dec7c85f7f2e3175e2bd15b2a05a1180106a85
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00006-of-00007.gguf
+            size_bytes: 13325373312
+            sha256: 8a69bf5fbe8a07f053d976b0a340d4d669124bfd89fec4cdd8fbcbc7a5df122a
+          - role: model
+            path: Q4_K_M/nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf.Q4_K_M.gguf-00007-of-00007.gguf
+            size_bytes: 5596226976
+            sha256: 3ba28027767c5101ef7615dea7584c18b206a1fc2bf4390d3b7d91991274331e
+          - role: mmproj
+            path: mmproj-nvidia.NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16.f16.gguf
+            size_bytes: 1727798656
+            sha256: 64d25098db7ec3d53f12ddbd5f57e790a07096ee9963815236ad46749fbaa1cf
+
+  - id: gemma-4
+    label: Gemma 4
+    brand_color: '#4285F4'
+    developer: Google
+    license: apache-2.0
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      Google's open-weight vision-language family. The 26B-A4B build is a
+      mixture-of-experts model: 26B parameters, about 4B active per token,
+      so it runs close to the speed of a much smaller model.
+    homepage: https://huggingface.co/unsloth
+    # Builds from unsloth's GGUF conversions (sizes and sha256 read from the
+    # Hugging Face API on 2026-11-19). Not yet run in VoucherVisionLocal:
+    # the settings below are a starting point to confirm on the test sheets.
+    # Will's VoucherVision-Gemma experiments capped the image at 1,120 visual
+    # tokens; whether this llama.cpp
+    # build accepts an image token limit for Gemma 4 is checked on the first
+    # run, so the engine default is used until then.
+    inference:
+      context_size: 8192
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: gemma-4-12b-q4
+        label: Gemma 4 12B (Q4)
+        params: 12B
+        quant: Q4_K_M
+        tier: small
+        hf_repo: unsloth/gemma-4-12b-it-GGUF
+        hf_revision: fc034cfff751157913579611efad8462ac1be606
+        context_default: 8192
+        inference: {kv_bytes_per_token: 16384}
+        files:
+          - role: model
+            path: gemma-4-12b-it-Q4_K_M.gguf
+            size_bytes: 7121861440
+            sha256: 0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 175115840
+            sha256: 91f086971e56d7a7d8d39e271873fccdb49541bd259d6e02c401a4f1cb7a219e
+      - id: gemma-4-12b-q8
+        label: Gemma 4 12B (Q8)
+        params: 12B
+        quant: Q8_0
+        tier: medium
+        hf_repo: unsloth/gemma-4-12b-it-GGUF
+        hf_revision: fc034cfff751157913579611efad8462ac1be606
+        context_default: 8192
+        inference: {kv_bytes_per_token: 16384}
+        files:
+          - role: model
+            path: gemma-4-12b-it-Q8_0.gguf
+            size_bytes: 12669647680
+            sha256: f20e7ff1be28c283eeeb18fc895733791c56a5851d5cd3fe9691b7f7d12afa72
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 175115840
+            sha256: 91f086971e56d7a7d8d39e271873fccdb49541bd259d6e02c401a4f1cb7a219e
+      - id: gemma-4-26b-a4b-q4
+        label: Gemma 4 26B-A4B (Q4)
+        params: 26B (4B active)
+        quant: UD-Q4_K_XL
+        tier: medium
+        hf_repo: unsloth/gemma-4-26B-A4B-it-GGUF
+        hf_revision: c099eb48e663fd284577b04978a94ffccb261841
+        context_default: 8192
+        inference: {kv_bytes_per_token: 20480}
+        files:
+          - role: model
+            path: gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf
+            size_bytes: 17010980576
+            sha256: ef728c8e0c337fd1067b947af006e38a9ef2419e56feced4fd29b4bf0636e30c
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 1193058784
+            sha256: 418a6d8723067cd712235facbbc5cba6c8fbbd413fc1292d2aace5a027d5a42f
+      - id: gemma-4-26b-a4b-q8
+        label: Gemma 4 26B-A4B (Q8)
+        params: 26B (4B active)
+        quant: Q8_0
+        tier: large
+        hf_repo: unsloth/gemma-4-26B-A4B-it-GGUF
+        hf_revision: c099eb48e663fd284577b04978a94ffccb261841
+        context_default: 8192
+        inference: {kv_bytes_per_token: 20480}
+        files:
+          - role: model
+            path: gemma-4-26B-A4B-it-Q8_0.gguf
+            size_bytes: 26859861728
+            sha256: 5f7cbd0f4564e84342fc34321a09acb54b1a3da9215124e5bf444baa6dda152c
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 1193058784
+            sha256: 418a6d8723067cd712235facbbc5cba6c8fbbd413fc1292d2aace5a027d5a42f
+
+      - id: gemma-4-31b-q4
+        label: Gemma 4 31B (Q4)
+        params: 31B
+        quant: Q4_K_M
+        tier: medium
+        hf_repo: unsloth/gemma-4-31B-it-GGUF
+        hf_revision: c1ac76e99d5513b141e8adde7288b85c3f9c32ec
+        context_default: 8192
+        inference: {kv_bytes_per_token: 81920}
+        files:
+          - role: model
+            path: gemma-4-31B-it-Q4_K_M.gguf
+            size_bytes: 18323733440
+            sha256: 38bd64c852c4b460434cc7162fa9bdcf242faf86502581a754cb72956bb17f84
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 1198957024
+            sha256: 6edcca228213c28d3567a35d22f849eea52d8360875093851959adf5d2f270eb
+      - id: gemma-4-31b-q8
+        label: Gemma 4 31B (Q8)
+        params: 31B
+        quant: Q8_0
+        tier: large
+        hf_repo: unsloth/gemma-4-31B-it-GGUF
+        hf_revision: c1ac76e99d5513b141e8adde7288b85c3f9c32ec
+        context_default: 8192
+        inference: {kv_bytes_per_token: 81920}
+        files:
+          - role: model
+            path: gemma-4-31B-it-Q8_0.gguf
+            size_bytes: 32635677632
+            sha256: d5808e5874e660a85ab45b2da00c9e3b4a003621249a333772232d1a703e4d67
+          - role: mmproj
+            path: mmproj-F16.gguf
+            size_bytes: 1198957024
+            sha256: 6edcca228213c28d3567a35d22f849eea52d8360875093851959adf5d2f270eb
+  - id: glm
+    label: GLM
+    brand_color: '#3859FF'
+    developer: Z.ai (Zhipu)
+    status: planned
+    roles: [ocr, parse]
+    summary: GLM vision-language and OCR models.
+    builds: []
+
+  - id: mistral
+    label: Mistral
+    brand_color: '#FA520F'
+    developer: Mistral AI
+    status: planned
+    roles: [ocr, parse]
+    summary: Mistral's open-weight vision-capable models.
+    builds: []
+
+  - id: kimi
+    label: Kimi
+    brand_color: '#1F1F1F'
+    developer: Moonshot AI
+    status: planned
+    roles: [ocr, parse]
+    summary: Kimi vision-language models.
+    builds: []
+
+  - id: mimo
+    label: MiMo
+    brand_color: '#FF6900'
+    developer: Xiaomi
+    license: mit
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      Xiaomi's vision-language models: MiMo-VL 7B (the August 2025 update) and
+      MiMo-V2.6 Distill 9B, Xiaomi's newest small vision model, built on Qwen3.5.
+    homepage: https://huggingface.co/XiaomiMiMo
+    # GGUF builds from bartowski and ggml-org (not unsloth), sizes and sha256 read 2026-11-19. Not yet run in VoucherVisionLocal.
+    inference:
+      context_size: 8192
+      image_min_tokens: 1024
+      image_max_tokens: 4096
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: mimo-vl-7b-rl-2508-q8
+        label: MiMo-VL 7B RL 2508 (Q8)
+        params: 7B
+        quant: Q8_0
+        tier: medium
+        hf_repo: bartowski/XiaomiMiMo_MiMo-VL-7B-RL-2508-GGUF
+        hf_revision: dc67b07909a98a50d5798570f50695a38440c0b5
+        context_default: 8192
+        inference: {kv_bytes_per_token: 147456}
+        files:
+          - role: model
+            path: XiaomiMiMo_MiMo-VL-7B-RL-2508-Q8_0.gguf
+            size_bytes: 8106511808
+            sha256: 612db7eb8f0a6805b782346861ecbe7bf84b61c8f0b57c8a5290fe661dcf066d
+          - role: mmproj
+            path: mmproj-XiaomiMiMo_MiMo-VL-7B-RL-2508-f16.gguf
+            size_bytes: 1368263840
+            sha256: 68f983965002dfc3819125f0d4a61882fcc8de60f17fc05f9b8715f46645a66b
+      - id: mimo-v2.6-distill-qwen-9b-q4
+        label: MiMo-V2.6 Distill 9B (Q4)
+        params: 9B
+        quant: Q4_K_M
+        tier: small
+        hf_repo: bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF
+        hf_revision: 4371da10c84fb26da3592d4cf312d24aa82b7b65
+        context_default: 8192
+        inference: {kv_bytes_per_token: 32768}
+        files:
+          - role: model
+            path: MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf
+            size_bytes: 5841049120
+            sha256: 4bca6f18c73f72270c7a20c2ea2bea581de8246e318714277120369d34048c81
+          - role: mmproj
+            path: mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf
+            size_bytes: 918166048
+            sha256: ff348f3180a63188aa7285db85f550fe38acb61dd013c599eb8bad08d2cc2576
+      - id: mimo-v2.6-distill-qwen-9b-q8
+        label: MiMo-V2.6 Distill 9B (Q8)
+        params: 9B
+        quant: Q8_0
+        tier: medium
+        hf_repo: ggml-org/MiMo-V2.6-Distill-Qwen-9B-GGUF
+        hf_revision: 81baddc39bc48924a88e87b8d31aceb03058e559
+        context_default: 8192
+        inference: {kv_bytes_per_token: 32768}
+        files:
+          - role: model
+            path: MiMo-V2.6-Distill-Qwen-9B-Q8_0.gguf
+            size_bytes: 9527498048
+            sha256: de6dae10334e088876358ef9f574835bb3b401ea2ecf5d6a9473f37894df6b73
+          - role: mmproj
+            path: mmproj-MiMo-V2.6-Distill-Qwen-9B-Q8_0.gguf
+            size_bytes: 624229728
+            sha256: 4b77e812662a106d6739edf2a3e8e16e0e22291154c0b22a13dab42450410337
+
+  - id: muse
+    label: Muse
+    brand_color: '#0866FF'
+    developer: Meta Superintelligence Lab
+    license: apache-2.0
+    status: verified
+    roles: [ocr, parse]
+    summary: >-
+      Muse Glimmer 30B: a dense 30B model with a 1.8B-parameter vision encoder,
+      built for agent work; reads documents and screenshots. The BF16 build is
+      the full-precision model and needs both 48 GB graphics cards.
+    homepage: https://huggingface.co/meta-models
+    # unsloth GGUF builds with unsloth's Q8 vision file (2.1 GB), sizes and
+    # sha256 read 2026-11-19. Not yet run in VoucherVisionLocal. The model
+    # card allows up to 4,096 visual tokens per image; the engine default is
+    # used until a run shows whether this build accepts an image token limit.
+    inference:
+      context_size: 8192
+      ocr:
+        max_tokens: 3072
+        image_first: true
+      parse:
+        max_tokens: 2048
+    builds:
+      - id: muse-glimmer-30b-bf16
+        label: Muse Glimmer 30B (BF16)
+        params: 30B
+        quant: BF16
+        tier: large
+        hf_repo: unsloth/Muse-Glimmer-30B-GGUF
+        hf_revision: faa5b025c584459c13febfa5c59883516710ae39
+        context_default: 8192
+        inference: {kv_bytes_per_token: 13312}
+        files:
+          - role: model
+            path: BF16/Muse-Glimmer-30B-BF16-00001-of-00002.gguf
+            size_bytes: 29805191936
+            sha256: 9ed3c904ca80be99e787d95cc430c5b1ce3a44cb7acc012fda63c8e1649df7e5
+          - role: model
+            path: BF16/Muse-Glimmer-30B-BF16-00002-of-00002.gguf
+            size_bytes: 25920319232
+            sha256: bbec2aef54b01bff34977a7da2a6e9e73c3edc063fabf0ae4bd62817b7efe1ae
+          - role: mmproj
+            path: mmproj-Muse-Glimmer-30B-Q8_0.gguf
+            size_bytes: 2051685088
+            sha256: 01ff73c95108e1754a4c145176c6d3ba44338942285cb87dcac7f4f193192ea2
+      - id: muse-glimmer-30b-q8
+        label: Muse Glimmer 30B (Q8)
+        params: 30B
+        quant: Q8_0
+        tier: large
+        hf_repo: unsloth/Muse-Glimmer-30B-GGUF
+        hf_revision: faa5b025c584459c13febfa5c59883516710ae39
+        context_default: 8192
+        inference: {kv_bytes_per_token: 13312}
+        files:
+          - role: model
+            path: Muse-Glimmer-30B-Q8_0.gguf
+            size_bytes: 29612957984
+            sha256: f2c087d694ca8242a4a436076df7c041703ab051ac4b72bb1bfe2698299b0e86
+          - role: mmproj
+            path: mmproj-Muse-Glimmer-30B-Q8_0.gguf
+            size_bytes: 2051685088
+            sha256: 01ff73c95108e1754a4c145176c6d3ba44338942285cb87dcac7f4f193192ea2

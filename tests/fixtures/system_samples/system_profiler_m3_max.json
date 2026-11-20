@@ -1,0 +1,33 @@
+{
+  "SPDisplaysDataType" : [
+    {
+      "_name" : "Apple M3 Max",
+      "spdisplays_mtlgpufamilysupport" : "spdisplays_metal3",
+      "spdisplays_ndrvs" : [
+        {
+          "_name" : "Color LCD",
+          "_spdisplays_displayID" : "1",
+          "_spdisplays_pixels" : "3456 x 2234",
+          "_spdisplays_resolution" : "1728 x 1117 @ 120.00Hz",
+          "spdisplays_connection_type" : "spdisplays_internal",
+          "spdisplays_display_type" : "spdisplays_built-in-liquid-retina-xdr",
+          "spdisplays_main" : "spdisplays_yes",
+          "spdisplays_online" : "spdisplays_yes"
+        },
+        {
+          "_name" : "DELL U2723QE",
+          "_spdisplays_displayID" : "2",
+          "_spdisplays_pixels" : "3840 x 2160",
+          "_spdisplays_resolution" : "1920 x 1080 @ 60.00Hz (1080p FHD - Full High Definition)",
+          "spdisplays_connection_type" : "spdisplays_displayport_dongletype_dp",
+          "spdisplays_online" : "spdisplays_yes"
+        }
+      ],
+      "spdisplays_vendor" : "sppci_vendor_Apple",
+      "sppci_bus" : "spdisplays_builtin",
+      "sppci_cores" : "40",
+      "sppci_device_type" : "spdisplays_gpu",
+      "sppci_model" : "Apple M3 Max"
+    }
+  ]
+}

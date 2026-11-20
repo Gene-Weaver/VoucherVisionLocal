@@ -1,0 +1,521 @@
+{
+ "schema_version": 1,
+ "updated": "2026-11-19",
+ "_about": [
+  "Structural model settings the user can change on the VVL tab (reasoning, output length, image detail), per model family.",
+  "Families match the ids in models_local.yaml. Sampling values (temperature etc.) are NOT user settings: they are the model card defaults, recorded here so the engine can use them.",
+  "Most user controls have two simple options; reasoning strength offers a family's own levels. 'literal' says exactly what is sent for each option, so the GUI can show it.",
+  "Checked on 2026-11-19 against the chat template inside each GGUF file, the model cards on Hugging Face, and llama.cpp b12359 (per-request chat_template_kwargs rendered with /apply-template)."
+ ],
+ "controls": {
+  "reasoning": {
+   "label": "Reasoning",
+   "options": [
+    "off",
+    "on"
+   ],
+   "per_step": true,
+   "needs_engine_restart": false,
+   "_note": "Per request, so OCR and parsing can differ while the same model stays loaded. Reasoning tokens count toward the output token limit."
+  },
+  "strength": {
+   "label": "Reasoning strength",
+   "options": [
+    "low",
+    "medium",
+    "high",
+    "xhigh"
+   ],
+   "per_step": true,
+   "needs_engine_restart": false,
+   "_note": "Only for families whose reasoning lists 'levels'. Sent while reasoning is on, in place of '{strength}' in reasoning.literal.on. A family with can_turn_off false still reasons when reasoning is off (at its lowest level), so it gets the reasoning-on output token limits."
+  },
+  "output_length": {
+   "label": "Output length",
+   "options": [
+    "standard",
+    "long"
+   ],
+   "per_step": true,
+   "needs_engine_restart": "only when the engine's context window must grow (see engine_rules.context)"
+  },
+  "image_detail": {
+   "label": "Image detail",
+   "options": [
+    "standard",
+    "high"
+   ],
+   "steps": [
+    "ocr"
+   ],
+   "needs_engine_restart": true,
+   "_note": "Engine start options (--image-min-tokens / --image-max-tokens). Parsing sends no image, so it only applies to OCR."
+  }
+ },
+ "defaults": {
+  "ocr": {
+   "reasoning": "off",
+   "strength": "high",
+   "output_length": "standard",
+   "image_detail": "standard"
+  },
+  "parse": {
+   "reasoning": "off",
+   "strength": "high",
+   "output_length": "standard"
+  }
+ },
+ "output_length_tokens": {
+  "_note": "max_tokens sent per request. With reasoning on, the limit must also hold the thinking, so it is larger. Families may override.",
+  "reasoning_off": {
+   "standard": {
+    "ocr": 3072,
+    "parse": 2048
+   },
+   "long": {
+    "ocr": 8192,
+    "parse": 4096
+   }
+  },
+  "reasoning_on": {
+   "standard": {
+    "ocr": 8192,
+    "parse": 8192
+   },
+   "long": {
+    "ocr": 16384,
+    "parse": 16384
+   }
+  }
+ },
+ "image_detail_tokens": {
+  "_note": "Visual tokens per image for models with dynamic resolution (Qwen-style vision). llama.cpp warns that Qwen-VL needs at least 1024.",
+  "standard": {
+   "image_min_tokens": 1024,
+   "image_max_tokens": 4096
+  },
+  "high": {
+   "image_min_tokens": 1024,
+   "image_max_tokens": 8192
+  }
+ },
+ "engine_rules": {
+  "context": "Per model, minimum 8,192 tokens, maximum the model's own context_length (read from its GGUF header). Automatic = the smallest size that holds the chosen settings (image tokens + ~400 prompt tokens + OCR max_tokens; ~2,000 parse-prompt tokens + transcription + parse max_tokens), or, when reasoning is on for a step that uses the model, the largest that fits in the free graphics memory with one request slot. A size chosen on the VVL tab (generation.context) wins; then a size set on the Engine tab for all models. Changing it restarts that model's engine at the next request (vvl/llama/pool.py).",
+  "reasoning_flag": "Sent per request (chat_template_kwargs, or a prompt suffix for MiMo-VL), on and off alike, so OCR and parsing can differ while one engine serves both. No server-wide --reasoning flag is used.",
+  "reasoning_output": "llama-server returns thinking separately in message.reasoning_content; only message.content is used as the OCR text or the JSON record.",
+  "sampling": "Model card defaults below are sent as-is with every request; card names are translated to llama-server's (repetition_penalty -> repeat_penalty)."
+ },
+ "families": {
+  "qwen3-vl": {
+   "label": "Qwen3-VL",
+   "applies_to": "All Qwen3-VL *-Instruct builds",
+   "architecture": "qwen3vl",
+   "reasoning": {
+    "supported": false,
+    "_note": "The Instruct builds have no thinking mode (their chat template has no switch). Qwen publishes separate -Thinking checkpoints."
+   },
+   "image_detail": {
+    "supported": true
+   },
+   "sampling_defaults": {
+    "source": "Qwen/Qwen3-VL-8B-Instruct generation_config.json and README (vision settings)",
+    "values": {
+     "temperature": 0.7,
+     "top_p": 0.8,
+     "top_k": 20,
+     "repetition_penalty": 1.0,
+     "presence_penalty": 1.5
+    }
+   },
+   "card_output_length": "16,384 tokens recommended for vision tasks (README out_seq_length)",
+   "sources": [
+    "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct"
+   ]
+  },
+  "qwen3-6": {
+   "label": "Qwen3.6",
+   "applies_to": "Qwen3.6 27B and 35B-A3B",
+   "architecture": "qwen35 / qwen35moe",
+   "reasoning": {
+    "supported": true,
+    "model_default": "on",
+    "literal": {
+     "off": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": false
+       }
+      }
+     },
+     "on": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": true
+       }
+      }
+     }
+    },
+    "_note": "Thinks by default. Template also has preserve_thinking (multi-turn only; not used)."
+   },
+   "image_detail": {
+    "supported": true
+   },
+   "sampling_defaults": {
+    "source": "Qwen/Qwen3.6-35B-A3B README (Best Practices)",
+    "values_by_reasoning": {
+     "on": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repetition_penalty": 1.0
+     },
+     "off": {
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repetition_penalty": 1.0
+     }
+    }
+   },
+   "card_output_length": "32,768 tokens for most queries; 81,920 for very hard problems",
+   "sources": [
+    "https://huggingface.co/Qwen/Qwen3.6-35B-A3B",
+    "https://huggingface.co/Qwen/Qwen3.6-27B"
+   ]
+  },
+  "qwen3-5": {
+   "label": "Qwen3.5",
+   "applies_to": "Qwen3.5 122B-A10B",
+   "architecture": "qwen35moe",
+   "reasoning": {
+    "supported": true,
+    "model_default": "on",
+    "literal": {
+     "off": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": false
+       }
+      }
+     },
+     "on": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": true
+       }
+      }
+     }
+    },
+    "_note": "Same switch as Qwen3.6 (from the model card; the GGUF template was not read because the download was still running)."
+   },
+   "image_detail": {
+    "supported": true
+   },
+   "sampling_defaults": {
+    "source": "Qwen/Qwen3.5-122B-A10B README (Best Practices); generation_config.json says temperature 0.6",
+    "values_by_reasoning": {
+     "on": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repetition_penalty": 1.0
+     },
+     "off": {
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repetition_penalty": 1.0
+     }
+    }
+   },
+   "card_output_length": "32,768 tokens for most queries; 81,920 for very hard problems",
+   "sources": [
+    "https://huggingface.co/Qwen/Qwen3.5-122B-A10B"
+   ]
+  },
+  "gemma-4": {
+   "label": "Gemma 4",
+   "applies_to": "Gemma 4 12B, 26B-A4B, 31B",
+   "architecture": "gemma4 (vision: gemma4v; 12B uses gemma4uv)",
+   "reasoning": {
+    "supported": true,
+    "model_default": "off",
+    "literal": {
+     "off": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": false
+       }
+      }
+     },
+     "on": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": true
+       }
+      }
+     }
+    },
+    "_note": "The template's own default is off, but llama-server (reasoning 'auto') turns it on when nothing is sent, so the switch must always be sent explicitly. On adds <|think|> to the system turn."
+   },
+   "image_detail": {
+    "supported": false,
+    "_note": "Not verified: Gemma 4 uses fixed visual token budgets (Will's experiments used 1,120); whether this llama.cpp build honors --image-max-tokens for gemma4v is untested."
+   },
+   "sampling_defaults": {
+    "source": "google/gemma-4-12B-it generation_config.json and README (Best Practices)",
+    "values": {
+     "temperature": 1.0,
+     "top_p": 0.95,
+     "top_k": 64
+    }
+   },
+   "card_output_length": "not stated",
+   "sources": [
+    "https://huggingface.co/google/gemma-4-12B-it"
+   ]
+  },
+  "muse": {
+   "label": "Muse",
+   "applies_to": "Muse Glimmer 30B (Q8, BF16)",
+   "architecture": "muse-glimmer",
+   "reasoning": {
+    "supported": true,
+    "model_default": "on",
+    "levels": [
+     "low",
+     "medium",
+     "high",
+     "xhigh"
+    ],
+    "default_level": "high",
+    "can_turn_off": false,
+    "literal": {
+     "off": {
+      "request": {
+       "chat_template_kwargs": {
+        "reasoning_strength": "low"
+       }
+      }
+     },
+     "on": {
+      "request": {
+       "chat_template_kwargs": {
+        "reasoning_strength": "{strength}"
+       }
+      }
+     }
+    },
+    "_note": "There is no 'none' level: off means the lowest strength (low), and the model still reasons, so it gets the reasoning-on output token limits. On sends the chosen strength (levels from the model card; the template writes 'Reasoning strength: <level>.' into the system turn, default high). The server-wide --reasoning off flag does NOT change it."
+   },
+   "image_detail": {
+    "supported": false,
+    "_note": "Card: up to 4,096 visual tokens per image. Whether this llama.cpp build honors --image-max-tokens for Muse is untested."
+   },
+   "sampling_defaults": {
+    "source": "meta-models/Muse-Glimmer-30B generation_config.json and README (Best Practices)",
+    "values": {
+     "temperature": 1.0,
+     "top_p": 0.95,
+     "top_k": 64
+    }
+   },
+   "card_output_length": "not stated",
+   "sources": [
+    "https://huggingface.co/meta-models/Muse-Glimmer-30B"
+   ]
+  },
+  "mimo": {
+   "label": "MiMo",
+   "_note": "Two different models share this family; settings are per build.",
+   "builds": {
+    "mimo-vl-7b-rl-2508-q8": {
+     "label": "MiMo-VL 7B RL 2508",
+     "architecture": "qwen2vl (vision: qwen2.5vl_merger)",
+     "reasoning": {
+      "supported": true,
+      "model_default": "on",
+      "literal": {
+       "off": {
+        "prompt_suffix": " /no_think",
+        "_where": "end of the last user message, after the image"
+       },
+       "on": {
+        "prompt_suffix": ""
+       }
+      },
+      "_note": "The chat template has no switch; the model card says to end the user message with /no_think. The server-wide --reasoning off flag does NOT change it, so this model currently thinks during OCR and parsing."
+     },
+     "image_detail": {
+      "supported": true
+     },
+     "sampling_defaults": {
+      "source": "XiaomiMiMo/MiMo-VL-7B-RL-2508 README (Deployment Parameters)",
+      "values": {
+       "temperature": 0.3,
+       "top_p": 0.95
+      }
+     },
+     "card_output_length": "not stated",
+     "sources": [
+      "https://huggingface.co/XiaomiMiMo/MiMo-VL-7B-RL-2508"
+     ]
+    },
+    "mimo-v2.6-distill-qwen-9b-q4": {
+     "same_as": "mimo-v2.6-distill-qwen-9b-q8"
+    },
+    "mimo-v2.6-distill-qwen-9b-q8": {
+     "label": "MiMo-V2.6 Distill 9B",
+     "architecture": "qwen35",
+     "reasoning": {
+      "supported": true,
+      "model_default": "on",
+      "literal": {
+       "off": {
+        "request": {
+         "chat_template_kwargs": {
+          "enable_thinking": false
+         }
+        }
+       },
+       "on": {
+        "request": {
+         "chat_template_kwargs": {
+          "enable_thinking": true
+         }
+        }
+       }
+      },
+      "_note": "Verified with /apply-template: enable_thinking false adds an empty <think></think> block."
+     },
+     "image_detail": {
+      "supported": true
+     },
+     "sampling_defaults": {
+      "source": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B generation_config.json",
+      "values": {
+       "temperature": 0.6,
+       "top_p": 0.95,
+       "top_k": 20
+      }
+     },
+     "card_output_length": "not stated (examples use 2,048)",
+     "sources": [
+      "https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+     ]
+    }
+   }
+  },
+  "ling": {
+   "label": "Ling",
+   "applies_to": "Ling 3.0 Flash VL (IQ4_XS, Q4)",
+   "architecture": "bailingmoe3",
+   "reasoning": {
+    "supported": true,
+    "model_default": "on",
+    "levels": [
+     "low",
+     "high"
+    ],
+    "default_level": "high",
+    "literal": {
+     "off": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": false
+       }
+      }
+     },
+     "on": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": true
+       }
+      }
+     }
+    },
+    "level_requests": {
+     "low": {
+      "reasoning_budget_tokens": 512
+     }
+    },
+    "_note": "The chat template has only enable_thinking (it writes 'detailed thinking on/off'). 'low' adds a 512-token reasoning budget through llama-server; 'high' leaves reasoning unlimited. Read from the GGUF header on 2026-11-20; the budget field name is taken from the b12359 binary and not yet verified."
+   },
+   "image_detail": {
+    "supported": true
+   },
+   "sampling_defaults": {
+    "source": "GGUF general.sampling (bartowski/Ling-3.0-flash-VL-GGUF)",
+    "values": {
+     "temperature": 1.0,
+     "top_p": 0.95,
+     "top_k": 20
+    }
+   },
+   "card_output_length": "not stated",
+   "sources": [
+    "https://huggingface.co/inclusionAI/Ling-3.0-flash-VL"
+   ]
+  },
+  "nemotron": {
+   "label": "Nemotron",
+   "applies_to": "Nemotron 3.5 Super VL 120B-A12B (Q3, Q4)",
+   "architecture": "nemotron_h_moe",
+   "reasoning": {
+    "supported": true,
+    "model_default": "on",
+    "levels": [
+     "low",
+     "high"
+    ],
+    "default_level": "high",
+    "literal": {
+     "off": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": false
+       }
+      }
+     },
+     "on": {
+      "request": {
+       "chat_template_kwargs": {
+        "enable_thinking": true
+       }
+      }
+     }
+    },
+    "level_requests": {
+     "low": {
+      "chat_template_kwargs": {
+       "medium_effort": true
+      }
+     }
+    },
+    "_note": "The chat template has enable_thinking and medium_effort (it appends '{reasoning effort: efficient}' to the last user turn). 'low' sends medium_effort true; 'high' is full reasoning. Read from the GGUF header on 2026-11-20."
+   },
+   "image_detail": {
+    "supported": true
+   },
+   "sampling_defaults": {
+    "source": "GGUF general.sampling (DevQuasar build)",
+    "values": {
+     "temperature": 1.0,
+     "top_p": 0.95
+    }
+   },
+   "card_output_length": "not stated",
+   "sources": [
+    "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-BF16"
+   ]
+  }
+ }
+}

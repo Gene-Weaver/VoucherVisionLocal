@@ -1,0 +1,5 @@
+0000:00:00.0 "Host bridge [0600]" "Advanced Micro Devices, Inc. [AMD] [1022]" "Device [14d8]" "ASUSTeK Computer Inc. [1043]" "Device [8877]"
+0000:00:01.1 "PCI bridge [0604]" "Advanced Micro Devices, Inc. [AMD] [1022]" "Device [14db]" "" ""
+0000:03:00.0 "VGA compatible controller [0300]" "Advanced Micro Devices, Inc. [AMD/ATI] [1002]" "Navi 31 [Radeon RX 7900 XT/7900 XTX/7900M] [744c]" -rc8 "Sapphire Technology Limited [1da2]" "Device [e471]"
+0000:03:00.1 "Audio device [0403]" "Advanced Micro Devices, Inc. [AMD/ATI] [1002]" "Navi 31 HDMI/DP Audio [ab30]" "Sapphire Technology Limited [1da2]" "Device [e471]"
+0000:13:00.0 "VGA compatible controller [0300]" "Advanced Micro Devices, Inc. [AMD/ATI] [1002]" "Raphael [164e]" -rc6 "ASUSTeK Computer Inc. [1043]" "Device [8877]"

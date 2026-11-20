@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 164,
+  "os": {
+    "system": "Windows",
+    "name": "Windows 11 Home 23H2",
+    "version": "10.0.22631.4460",
+    "kernel": "10.0.22631",
+    "arch": "x86_64",
+    "python_arch": "x86_64",
+    "is_translated": false,
+    "is_wsl": false,
+    "wsl_version": null,
+    "wsl_gpu_passthrough": null,
+    "is_apple_silicon": false,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "13th Gen Intel(R) Core(TM) i7-13620H",
+    "vendor": "GenuineIntel",
+    "physical_cores": 10,
+    "logical_cores": 16,
+    "max_mhz": 2400,
+    "features": {
+      "avx": true,
+      "avx2": true,
+      "avx512": false,
+      "fma": null,
+      "f16c": null,
+      "neon": false,
+      "avx_vnni": null,
+      "avx512_vnni": null,
+      "amx": null,
+      "sve": false,
+      "dotprod": false,
+      "i8mm": false
+    },
+    "features_source": "windows_api"
+  },
+  "memory": {
+    "total_bytes": 17005965312,
+    "available_bytes": 9126805504,
+    "swap_total_bytes": 2550136832,
+    "swap_free_bytes": 2400000000
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "nvidia",
+      "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+      "kind": "discrete",
+      "vram_total_bytes": 8585740288,
+      "vram_free_bytes": 8317304832,
+      "driver_version": "560.94",
+      "backend_hints": [
+        "cuda",
+        "vulkan"
+      ],
+      "source": "nvidia-smi",
+      "details": {
+        "nvidia_index": 0,
+        "uuid": "GPU-4f3c2a1b-8d7e-4c5b-9a1f-2e3d4c5b6a70",
+        "pci_bus_id": "0000:01:00.0",
+        "pci_vendor_id": "0x10de",
+        "pci_device_id": "0x28e0",
+        "compute_capability": "8.9",
+        "vram_used_bytes": 0,
+        "vulkan": true
+      }
+    },
+    {
+      "index": 1,
+      "vendor": "intel",
+      "name": "Intel(R) UHD Graphics",
+      "kind": "integrated",
+      "vram_total_bytes": 134217728,
+      "vram_free_bytes": null,
+      "driver_version": "31.0.101.4502",
+      "backend_hints": [
+        "vulkan"
+      ],
+      "source": "registry",
+      "details": {
+        "pci_vendor_id": "0x8086",
+        "pci_device_id": "0xa7a8",
+        "pci_bus_id": "0000:00:02.0",
+        "provider": "Intel Corporation",
+        "registry_key": "0000",
+        "vram_source": "qwMemorySize",
+        "vram_capped": false,
+        "presence_checked": true,
+        "dedicated_memory_bytes": 134217728,
+        "vulkan": true
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": true,
+      "detail": "driver 560.94, CUDA 12.6",
+      "state": "ok",
+      "driver_version": "560.94",
+      "cuda_version": "12.6"
+    },
+    "metal": {
+      "available": false,
+      "detail": "macOS only"
+    },
+    "vulkan": {
+      "available": true,
+      "detail": "NVIDIA GeForce RTX 4060 Laptop GPU, Intel(R) UHD Graphics (Vulkan 1.3.290)",
+      "devices": [
+        {
+          "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+          "type": "discrete",
+          "vendor_id": "0x10de",
+          "device_id": "0x28e0",
+          "api_version": "1.3.289",
+          "driver_name": "NVIDIA"
+        },
+        {
+          "name": "Intel(R) UHD Graphics",
+          "type": "integrated",
+          "vendor_id": "0x8086",
+          "device_id": "0xa7a8",
+          "api_version": "1.3.289",
+          "driver_name": "Intel Corporation"
+        }
+      ]
+    }
+  },
+  "disk": {
+    "models_dir": "C:\\Users\\Sam\\AppData\\Local\\VoucherVisionLocal\\models",
+    "models_dir_source": "default",
+    "exists": false,
+    "checked_path": "C:\\Users\\Sam\\AppData\\Local",
+    "total_bytes": 1022870155264,
+    "free_bytes": 412316860416,
+    "is_synced_folder": false,
+    "synced_folder_hint": null,
+    "writable": true,
+    "filesystem": "NTFS",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "cuda",
+    "backend_reason": "NVIDIA GPU with a working driver was found.",
+    "gpu_memory_budget_bytes": 8183087104,
+    "cpu_memory_budget_bytes": 12754473984,
+    "tier": "mid",
+    "summary": "NVIDIA GeForce RTX 4060 Laptop GPU (8 GB), 16 threads, 16 GB RAM",
+    "memory_mode": "discrete",
+    "gpu_indices": [
+      0
+    ]
+  },
+  "warnings": [
+    {
+      "code": "MODELS_DIR_MISSING",
+      "message": "The models folder does not exist yet. It is created on first download.",
+      "severity": "info"
+    }
+  ],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_nvidia",
+      "ok": true,
+      "duration_ms": 48,
+      "error": null
+    },
+    {
+      "name": "gpu_windows",
+      "ok": true,
+      "duration_ms": 12,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}

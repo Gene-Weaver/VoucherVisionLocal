@@ -1,0 +1,39 @@
+# VoucherVisionLocal credentials — TEMPLATE.
+#
+# Copy this file to PRIVATE.yaml (same folder) and fill in only the entries you use,
+# or leave it alone and enter keys on the "Keys" tab of the app, which writes
+# PRIVATE.yaml for you.
+#
+# PRIVATE.yaml is gitignored and never leaves this computer. Keys are sent only to
+# the service they belong to, and only when you run a request that uses that service.
+#
+# The set of entries below mirrors vvl/registry/providers.yaml. Each top-level key is
+# a credential id; each field under it is one secret value.
+
+version: 1
+
+credentials:
+  # VoucherVisionGO account — data enrichment helpers (World Flora Online name
+  # checks, elevation lookups) served by the hosted VoucherVisionGO API.
+  vvgo:
+    api_key: ""
+
+  # Google Gemini (Google AI Studio key).
+  gemini:
+    api_key: ""
+
+  # Anthropic Claude.
+  anthropic:
+    api_key: ""
+
+  # OpenAI.
+  openai:
+    api_key: ""
+
+  # OpenRouter (one key for Claude, GPT, Gemini, Mistral, Qwen, and others).
+  openrouter:
+    api_key: ""
+
+  # Hugging Face access token — only needed to download gated models.
+  huggingface:
+    token: ""

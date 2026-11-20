@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Everything this page loads comes from the local VoucherVisionLocal server, except the
+         OpenStreetMap tiles shown in the results map. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+    <meta name="referrer" content="no-referrer">
+    <title>VoucherVisionLocal</title>
+    <link rel="icon" href="/ui/img/logo.png">
+    <link rel="stylesheet" href="/ui/css/vvl.css">
+    <script src="/ui/js/theme-boot.js"></script>
+    <script type="module" src="/ui/js/app.js"></script>
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="container">
+        <div id="topBar" class="topbar">
+            <header class="header">
+                <div class="logo-container">
+                    <img src="/ui/img/logo.png" alt="VoucherVision logo" class="logo" width="96" height="50">
+                    <div class="header-titles">
+                        <div class="app-title-row">
+                            <h1 class="app-title">VoucherVisionLocal</h1>
+                            <span id="appVersion" class="app-version"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div id="jobIndicator" class="job-indicator-host"></div>
+                    <div id="resourceMonitor" class="resmon-host"></div>
+                    <button id="themeToggle" type="button" class="dark-mode-toggle" aria-pressed="false" aria-label="Switch to dark theme" title="Switch to dark theme"></button>
+                </div>
+            </header>
+
+            <nav id="tabBar" class="nav-bar" hidden></nav>
+        </div>
+
+        <main id="main" class="main">
+            <div class="boot-loading" role="status">
+                <span class="spinner" aria-hidden="true"></span>
+                <span>Connecting to VoucherVisionLocal&hellip;</span>
+            </div>
+        </main>
+    </div>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <noscript><p class="noscript">VoucherVisionLocal needs JavaScript to run.</p></noscript>
+</body>
+</html>

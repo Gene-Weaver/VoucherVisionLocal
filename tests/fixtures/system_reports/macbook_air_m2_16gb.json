@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 414,
+  "os": {
+    "system": "Darwin",
+    "name": "macOS 14.5 Sonoma",
+    "version": "14.5",
+    "kernel": "23.5.0",
+    "arch": "arm64",
+    "python_arch": "arm64",
+    "is_translated": false,
+    "is_wsl": false,
+    "wsl_version": null,
+    "wsl_gpu_passthrough": null,
+    "is_apple_silicon": true,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "Apple M2",
+    "vendor": "Apple",
+    "physical_cores": 8,
+    "logical_cores": 8,
+    "max_mhz": null,
+    "features": {
+      "avx": false,
+      "avx2": false,
+      "avx512": false,
+      "fma": false,
+      "f16c": false,
+      "neon": true,
+      "avx_vnni": false,
+      "avx512_vnni": false,
+      "amx": false,
+      "sve": false,
+      "dotprod": true,
+      "i8mm": true
+    },
+    "features_source": "sysctl"
+  },
+  "memory": {
+    "total_bytes": 17179869184,
+    "available_bytes": 7516192768,
+    "swap_total_bytes": 1073741824,
+    "swap_free_bytes": 900000000
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "apple",
+      "name": "Apple M2",
+      "kind": "unified",
+      "vram_total_bytes": 17179869184,
+      "vram_free_bytes": null,
+      "driver_version": null,
+      "backend_hints": [
+        "metal"
+      ],
+      "source": "system_profiler",
+      "details": {
+        "gpu_cores": 10,
+        "metal_support": "Metal 3",
+        "bus": "spdisplays_builtin",
+        "pci_device_id": null,
+        "unified_memory_bytes": 17179869184
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": false,
+      "detail": "CUDA is not available on macOS.",
+      "state": "not_applicable",
+      "driver_version": null,
+      "cuda_version": null
+    },
+    "metal": {
+      "available": true,
+      "detail": "Apple M2, 10-core GPU, Metal 3"
+    },
+    "vulkan": {
+      "available": null,
+      "detail": "vulkaninfo not found",
+      "devices": []
+    }
+  },
+  "disk": {
+    "models_dir": "/Users/sam/Library/Application Support/VoucherVisionLocal/models",
+    "models_dir_source": "default",
+    "exists": false,
+    "checked_path": "/Users/sam/Library/Application Support",
+    "total_bytes": 494384795648,
+    "free_bytes": 128849018880,
+    "is_synced_folder": false,
+    "synced_folder_hint": null,
+    "writable": true,
+    "filesystem": "apfs",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "metal",
+    "backend_reason": "Apple Silicon Mac: llama.cpp runs models on the GPU through Metal.",
+    "gpu_memory_budget_bytes": 11453246122,
+    "cpu_memory_budget_bytes": 12884901888,
+    "tier": "mid",
+    "summary": "Apple M2 (10-core GPU), 8 CPU cores, 16 GB unified memory",
+    "memory_mode": "shared",
+    "gpu_indices": [
+      0
+    ]
+  },
+  "warnings": [
+    {
+      "code": "MODELS_DIR_MISSING",
+      "message": "The models folder does not exist yet. It is created on first download.",
+      "severity": "info"
+    }
+  ],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_apple",
+      "ok": true,
+      "duration_ms": 410,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}

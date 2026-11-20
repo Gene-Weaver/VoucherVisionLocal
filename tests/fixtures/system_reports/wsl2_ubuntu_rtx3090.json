@@ -1,0 +1,166 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 164,
+  "os": {
+    "system": "Linux",
+    "name": "Ubuntu 22.04.4 LTS",
+    "version": "22.04",
+    "kernel": "5.15.153.1-microsoft-standard-WSL2",
+    "arch": "x86_64",
+    "python_arch": "x86_64",
+    "is_translated": false,
+    "is_wsl": true,
+    "wsl_version": 2,
+    "wsl_gpu_passthrough": true,
+    "is_apple_silicon": false,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "AMD Ryzen 9 5900X 12-Core Processor",
+    "vendor": "AuthenticAMD",
+    "physical_cores": 12,
+    "logical_cores": 24,
+    "max_mhz": null,
+    "features": {
+      "avx": true,
+      "avx2": true,
+      "avx512": false,
+      "fma": true,
+      "f16c": true,
+      "neon": false,
+      "avx_vnni": false,
+      "avx512_vnni": false,
+      "amx": false,
+      "sve": false,
+      "dotprod": false,
+      "i8mm": false
+    },
+    "features_source": "proc_cpuinfo"
+  },
+  "memory": {
+    "total_bytes": 33613971456,
+    "available_bytes": 31138512896,
+    "swap_total_bytes": 8589934592,
+    "swap_free_bytes": 8589934592
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "nvidia",
+      "name": "NVIDIA GeForce RTX 3090",
+      "kind": "discrete",
+      "vram_total_bytes": 25769803776,
+      "vram_free_bytes": 24226299904,
+      "driver_version": "566.03",
+      "backend_hints": [
+        "cuda",
+        "vulkan"
+      ],
+      "source": "nvidia-smi",
+      "details": {
+        "nvidia_index": 0,
+        "uuid": "GPU-9a8b7c6d-5e4f-4321-8765-0fedcba98765",
+        "pci_bus_id": "0000:2b:00.0",
+        "pci_vendor_id": "0x10de",
+        "pci_device_id": "0x2204",
+        "compute_capability": "8.6",
+        "vram_used_bytes": 1236271104
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": true,
+      "detail": "driver 566.03, CUDA 12.7",
+      "state": "ok",
+      "driver_version": "566.03",
+      "cuda_version": "12.7"
+    },
+    "metal": {
+      "available": false,
+      "detail": "macOS only"
+    },
+    "vulkan": {
+      "available": null,
+      "detail": "vulkaninfo not found",
+      "devices": []
+    }
+  },
+  "disk": {
+    "models_dir": "/mnt/d/VVL_Models",
+    "models_dir_source": "settings",
+    "exists": true,
+    "checked_path": "/mnt/d/VVL_Models",
+    "total_bytes": 2000396742656,
+    "free_bytes": 1099511627776,
+    "is_synced_folder": false,
+    "synced_folder_hint": null,
+    "writable": true,
+    "filesystem": "9p",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "cuda",
+    "backend_reason": "NVIDIA GPU with a working driver was found.",
+    "gpu_memory_budget_bytes": 24739011625,
+    "cpu_memory_budget_bytes": 25210478592,
+    "tier": "high",
+    "summary": "NVIDIA GeForce RTX 3090 (24 GB), 24 threads, 31 GB RAM",
+    "memory_mode": "discrete",
+    "gpu_indices": [
+      0
+    ]
+  },
+  "warnings": [
+    {
+      "code": "MODELS_DIR_WSL_WINDOWS_DRIVE",
+      "message": "The models folder is on a Windows drive (/mnt/...), which WSL reads slowly; choose a folder inside the Linux file system.",
+      "severity": "warning"
+    }
+  ],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_nvidia",
+      "ok": true,
+      "duration_ms": 48,
+      "error": null
+    },
+    {
+      "name": "gpu_linux",
+      "ok": true,
+      "duration_ms": 20,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 414,
+  "os": {
+    "system": "Darwin",
+    "name": "macOS 13.6.7 Ventura",
+    "version": "13.6.7",
+    "kernel": "22.6.0",
+    "arch": "x86_64",
+    "python_arch": "x86_64",
+    "is_translated": false,
+    "is_wsl": false,
+    "wsl_version": null,
+    "wsl_gpu_passthrough": null,
+    "is_apple_silicon": false,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    "vendor": "GenuineIntel",
+    "physical_cores": 8,
+    "logical_cores": 16,
+    "max_mhz": 2300,
+    "features": {
+      "avx": true,
+      "avx2": true,
+      "avx512": false,
+      "fma": true,
+      "f16c": true,
+      "neon": false,
+      "avx_vnni": false,
+      "avx512_vnni": false,
+      "amx": false,
+      "sve": false,
+      "dotprod": false,
+      "i8mm": false
+    },
+    "features_source": "sysctl"
+  },
+  "memory": {
+    "total_bytes": 34359738368,
+    "available_bytes": 15032385536,
+    "swap_total_bytes": 2147483648,
+    "swap_free_bytes": 1073741824
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "intel",
+      "name": "Intel UHD Graphics 630",
+      "kind": "integrated",
+      "vram_total_bytes": 1610612736,
+      "vram_free_bytes": null,
+      "driver_version": null,
+      "backend_hints": [],
+      "source": "system_profiler",
+      "details": {
+        "gpu_cores": null,
+        "metal_support": "Metal 3",
+        "bus": "spdisplays_builtin",
+        "pci_device_id": "0x3e9b",
+        "shared_memory": true
+      }
+    },
+    {
+      "index": 1,
+      "vendor": "amd",
+      "name": "AMD Radeon Pro 5500M",
+      "kind": "discrete",
+      "vram_total_bytes": 8589934592,
+      "vram_free_bytes": null,
+      "driver_version": null,
+      "backend_hints": [],
+      "source": "system_profiler",
+      "details": {
+        "gpu_cores": null,
+        "metal_support": "Metal 3",
+        "bus": "spdisplays_pcie_device",
+        "pci_device_id": "0x7340"
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": false,
+      "detail": "CUDA is not available on macOS.",
+      "state": "not_applicable",
+      "driver_version": null,
+      "cuda_version": null
+    },
+    "metal": {
+      "available": false,
+      "detail": "llama.cpp's Metal backend needs Apple Silicon; this is an Intel Mac."
+    },
+    "vulkan": {
+      "available": null,
+      "detail": "vulkaninfo not found",
+      "devices": []
+    }
+  },
+  "disk": {
+    "models_dir": "/Users/lee/Library/Application Support/VoucherVisionLocal/models",
+    "models_dir_source": "default",
+    "exists": false,
+    "checked_path": "/Users/lee/Library/Application Support",
+    "total_bytes": 1000240963584,
+    "free_bytes": 240518168576,
+    "is_synced_folder": false,
+    "synced_folder_hint": null,
+    "writable": true,
+    "filesystem": "apfs",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "cpu",
+    "backend_reason": "Intel Mac: llama.cpp's GPU support (Metal) needs Apple Silicon, so models run on the processor.",
+    "gpu_memory_budget_bytes": 0,
+    "cpu_memory_budget_bytes": 25769803776,
+    "tier": "cpu_only",
+    "summary": "Intel Core i9-9880H, 16 threads, 32 GB RAM, no usable GPU",
+    "memory_mode": "cpu",
+    "gpu_indices": []
+  },
+  "warnings": [
+    {
+      "code": "MODELS_DIR_MISSING",
+      "message": "The models folder does not exist yet. It is created on first download.",
+      "severity": "info"
+    }
+  ],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_apple",
+      "ok": true,
+      "duration_ms": 410,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}

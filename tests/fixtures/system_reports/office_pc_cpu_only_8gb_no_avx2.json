@@ -1,0 +1,175 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-19T18:04:11Z",
+  "duration_ms": 164,
+  "os": {
+    "system": "Windows",
+    "name": "Windows 10 Pro 22H2",
+    "version": "10.0.19045.5131",
+    "kernel": "10.0.19045",
+    "arch": "x86_64",
+    "python_arch": "x86_64",
+    "is_translated": false,
+    "is_wsl": false,
+    "wsl_version": null,
+    "wsl_gpu_passthrough": null,
+    "is_apple_silicon": false,
+    "python": "3.12.15"
+  },
+  "cpu": {
+    "model": "Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz",
+    "vendor": "GenuineIntel",
+    "physical_cores": 4,
+    "logical_cores": 4,
+    "max_mhz": 3201,
+    "features": {
+      "avx": true,
+      "avx2": false,
+      "avx512": false,
+      "fma": null,
+      "f16c": null,
+      "neon": false,
+      "avx_vnni": null,
+      "avx512_vnni": null,
+      "amx": null,
+      "sve": false,
+      "dotprod": false,
+      "i8mm": false
+    },
+    "features_source": "windows_api"
+  },
+  "memory": {
+    "total_bytes": 8484540416,
+    "available_bytes": 3758096384,
+    "swap_total_bytes": 1342177280,
+    "swap_free_bytes": 1000000000
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "vendor": "intel",
+      "name": "Intel(R) HD Graphics",
+      "kind": "integrated",
+      "vram_total_bytes": 2147483648,
+      "vram_free_bytes": null,
+      "driver_version": "10.18.10.5161",
+      "backend_hints": [
+        "vulkan"
+      ],
+      "source": "registry",
+      "details": {
+        "pci_vendor_id": "0x8086",
+        "pci_device_id": "0x0152",
+        "pci_bus_id": "0000:00:02.0",
+        "provider": "Intel Corporation",
+        "registry_key": "0000",
+        "vram_source": "MemorySize",
+        "vram_capped": false,
+        "presence_checked": true,
+        "dedicated_memory_bytes": 2147483648
+      }
+    }
+  ],
+  "accelerators": {
+    "cuda": {
+      "available": false,
+      "detail": "No NVIDIA GPU found.",
+      "state": "not_found",
+      "driver_version": null,
+      "cuda_version": null
+    },
+    "metal": {
+      "available": false,
+      "detail": "macOS only"
+    },
+    "vulkan": {
+      "available": null,
+      "detail": "vulkaninfo not found (a Vulkan loader is installed, so Vulkan may work)",
+      "devices": []
+    }
+  },
+  "disk": {
+    "models_dir": "C:\\Users\\Pat\\OneDrive - State University\\Documents\\VoucherVisionLocal\\models",
+    "models_dir_source": "settings",
+    "exists": false,
+    "checked_path": "C:\\Users\\Pat\\OneDrive - State University\\Documents",
+    "total_bytes": 255505461248,
+    "free_bytes": 61203283968,
+    "is_synced_folder": true,
+    "synced_folder_hint": "OneDrive",
+    "writable": true,
+    "filesystem": "NTFS",
+    "is_network": false
+  },
+  "capability": {
+    "recommended_backend": "cpu",
+    "backend_reason": "Only an integrated GPU was found, which is not fast enough to help, so models run on the processor.",
+    "gpu_memory_budget_bytes": 0,
+    "cpu_memory_budget_bytes": 5263314944,
+    "tier": "cpu_only",
+    "summary": "Intel Core i5-3470, 4 threads, 7.9 GB RAM, no usable GPU",
+    "memory_mode": "cpu",
+    "gpu_indices": []
+  },
+  "warnings": [
+    {
+      "code": "CPU_NO_AVX2",
+      "message": "This processor lacks AVX2, so anything that runs on the processor will be slow.",
+      "severity": "warning"
+    },
+    {
+      "code": "MODELS_DIR_MISSING",
+      "message": "The models folder does not exist yet. It is created on first download.",
+      "severity": "info"
+    },
+    {
+      "code": "MODELS_DIR_SYNCED",
+      "message": "The models folder is inside OneDrive. Model files are tens of GB; choose a folder that is not synced.",
+      "severity": "warning"
+    }
+  ],
+  "probes": [
+    {
+      "name": "os",
+      "ok": true,
+      "duration_ms": 2,
+      "error": null
+    },
+    {
+      "name": "cpu",
+      "ok": true,
+      "duration_ms": 6,
+      "error": null
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "duration_ms": 1,
+      "error": null
+    },
+    {
+      "name": "gpu_nvidia",
+      "ok": true,
+      "duration_ms": 48,
+      "error": null
+    },
+    {
+      "name": "gpu_windows",
+      "ok": true,
+      "duration_ms": 12,
+      "error": null
+    },
+    {
+      "name": "vulkan",
+      "ok": true,
+      "duration_ms": 160,
+      "error": null
+    },
+    {
+      "name": "disk",
+      "ok": true,
+      "duration_ms": 3,
+      "error": null
+    }
+  ]
+}
