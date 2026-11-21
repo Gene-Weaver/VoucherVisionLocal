@@ -296,10 +296,30 @@ def test_process_url_success_with_stubbed_fetch(client, auth, monkeypatch):
     assert closed
 
 
-def test_openvino_telemetry_blocked():
-    import sys
+def test_no_detector_uses_the_whole_image(make_app, auth):
+    """Before the label detector is downloaded, an image is processed whole (no 503)."""
+    from vvl.label_detector import DetectorNotInstalled
 
-    import vvl  # noqa: F401
-    from textcollage import CollageEngine  # noqa: F401
+    def not_installed():
+        raise DetectorNotInstalled("not downloaded yet")
 
-    assert sys.modules.get("openvino_telemetry") is None
+    client = make_app(VVL_DETECTOR_FACTORY=not_installed).test_client()
+    response = post_image(client, auth, {})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"]["text_collage"] == "False"
+    assert body["collage_info"]["position_original"] == {}
+    assert body["collage_info"]["base64image_text_collage"]
+
+
+def test_detector_load_error_is_kept_until_reset(make_app):
+    calls = []
+
+    def broken():
+        calls.append(1)
+        raise RuntimeError("bad package")
+
+    processor = make_app(VVL_DETECTOR_FACTORY=broken).extensions["vvl"]["processor"]
+    assert processor.collage_engine is None and processor.collage_engine is None
+    assert len(calls) == 1
+    assert processor.collage_status() == {"loaded": False, "loaded_runtime": None, "load_error": "RuntimeError: bad package"}

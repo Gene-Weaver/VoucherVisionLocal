@@ -11,6 +11,7 @@ restart. Test and scratch runs can override, through app config:
     VVL_HF_BASE_URL         Hugging Face base URL (default https://huggingface.co)
     VVL_SYSTEM_REPORT       callable(refresh: bool) -> report dict
     VVL_PRIVATE_PATH        credentials file (for the Hugging Face token)
+    VVL_DETECTOR_LOCK_PATH  archival_detector.lock.yaml
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ from typing import Callable
 
 from vvl import paths, settings
 from vvl.jobs import JobManager
+from vvl.label_detector import DetectorStore
+from vvl.label_detector import load_lock as load_detector_lock
 from vvl.llama.installer import EngineInstaller
 from vvl.llama.lock import load_lock
 from vvl.local_models import LocalModelStore
@@ -58,6 +61,12 @@ class Runtime:
             models_dir=self.models_dir,
             report=lambda: self.system_report(False),
             is_running=lambda: bool(self.supervisor and self.supervisor.is_running()),
+        )
+        # The TextCollage label detector's files (downloaded at first start).
+        self.detector = DetectorStore(
+            self.jobs,
+            lock=lambda: load_detector_lock(self.config.get("VVL_DETECTOR_LOCK_PATH")),
+            hf_base_url=self.config.get("VVL_HF_BASE_URL"),
         )
         from vvl.llama.pool import EnginePool
 

@@ -1,0 +1,34 @@
+# The TextCollage label detector: LeafMachine3's archival detector (YOLO26x, 1280,
+# end2end), downloaded at first start into <VVL_HOME>/detector/ and checked by sha256.
+# The sizes and sums come from manifest.json at this revision of the Hugging Face repo.
+# Change the revision only together with every file entry.
+repo: phyloforfun/lm3_archival_detector__yolo26x_det_1280
+revision: cf178fe1d4474d03447144aed06165637c6e8813
+license: AGPL-3.0
+imgsz: 1280
+conf: 0.25          # LeafMachine3's setting for this model
+max_det: 100
+classes: [Ruler, Barcode, Colorcard, Label, Map, Envelope, Photo, Attached Item, Weights]
+
+formats:
+  # macOS: Core ML on the Apple GPU (float32, every letterbox input shape).
+  coreml_fp32:
+    files:
+      - path: coreml_fp32/model.json
+        size_bytes: 7154
+        sha256: c28ed2ddb70d9e86d9b3cd3730265cf5f6af49481774ffc563bfe13cb5251a66
+      - path: coreml_fp32/model.mlpackage/Manifest.json
+        size_bytes: 617
+        sha256: f6185aba38f6b9cb189eb62b673640a87e9f86d3b597f1b6c709d61c977f0128
+      - path: coreml_fp32/model.mlpackage/Data/com.apple.CoreML/model.mlmodel
+        size_bytes: 299602
+        sha256: 38dbba5b6e2f802f09a85ac77a0deed1a9b4735c4617ff99aea29a779a11c839
+      - path: coreml_fp32/model.mlpackage/Data/com.apple.CoreML/weights/weight.bin
+        size_bytes: 222596544
+        sha256: 16e5ea6267888677f8d91a28b7fd2be9ffc4e4ae4a0df6bfc5846f6db98b1d98
+  # Windows and Linux (and a Mac with VVL_DETECTOR_FORMAT=onnx): onnxruntime on the CPU.
+  onnx:
+    files:
+      - path: onnx/model.onnx
+        size_bytes: 224208419
+        sha256: 9f31338f0d7b08f615b402987442b06e8039bafbf31f571f50d6ff73f8e22cf5

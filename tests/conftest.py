@@ -76,6 +76,10 @@ def make_app(vvl_env, elevation_spy):
     import app as app_module
 
     def _make(**config):
+        from fakes.fake_detector import FakeDetector
+
+        # A fixed-box detector unless a test passes its own factory.
+        config.setdefault("VVL_DETECTOR_FACTORY", FakeDetector)
         flask_app = app_module.create_app(token=TEST_TOKEN, config={"TESTING": True, **config})
         flask_app.extensions["vvl"]["processor"].elevation_lookup = elevation_spy
         return flask_app

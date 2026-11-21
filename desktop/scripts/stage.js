@@ -126,7 +126,7 @@ async function main() {
   const backend = path.join(stage, 'backend');
   fs.rmSync(backend, { recursive: true, force: true });
   const files = repoFiles(BACKEND);
-  for (const must of ['app.py', 'VERSION', 'vvl/cli.py', 'ui/index.html', 'textcollage/models/openvino/best.bin']) {
+  for (const must of ['app.py', 'VERSION', 'vvl/cli.py', 'ui/index.html', 'textcollage/detector.py', 'vvl/registry/archival_detector.lock.yaml']) {
     if (!files.includes(must)) throw new Error(`${must} is missing from the backend file list`);
   }
   if (files.some((f) => /(^|\/)PRIVATE[^/]*\.yaml$/.test(f) && !f.endsWith('PRIVATE.example.yaml'))) {

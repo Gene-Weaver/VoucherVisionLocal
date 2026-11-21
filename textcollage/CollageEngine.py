@@ -1,86 +1,84 @@
-import sys
-import cv2
-import numpy as np
-import json
-# VVL: keep OpenVINO's import-time Google Analytics telemetry off in this
-# process (it falls back to its own no-op stub). See vvl.block_openvino_telemetry.
-sys.modules.setdefault("openvino_telemetry", None)
-from openvino import Core
+"""TextCollage: crop the labels (and barcodes, maps) out of a specimen sheet and pack them
+into one compact image for OCR.
+
+VVL: the boxes come from LeafMachine3's archival detector (textcollage.detector,
+Core ML on macOS, onnxruntime elsewhere). The collage itself is TextCollage's.
+"""
 import base64
+import json
 import threading
 
-'''
-openvino
-opencv-python-headless
-numpy
-'''
+import cv2
+import numpy as np
+
+from textcollage.detector import imread
+
+
+def _class_key(name):
+    """The model's class name -> TextCollage's: "Attached Item" -> "attached_item"."""
+    return str(name).strip().lower().replace(" ", "_")
+
+
+def _encode(image, output_path):
+    """{"position_original", "position_collage", "base64image_text_collage"} for an image
+    used as-is; written to `output_path` instead of base64 when one is given."""
+    output = {"position_original": {}, "position_collage": {}, "base64image_text_collage": None}
+    success, jpg_array = cv2.imencode('.jpg', image)
+    if not success: raise RuntimeError("Failed to encode collage image to JPG.")
+    jpg_bytes = jpg_array.tobytes()
+    if output_path:
+        with open(output_path, 'wb') as f:
+            f.write(jpg_bytes)
+    else:
+        output['base64image_text_collage'] = base64.b64encode(jpg_bytes).decode('utf-8')
+    return output
+
+
+def whole_image(image_path, output_path=None):
+    """The result shape of CollageEngine.run, for the whole image (no detector needed)."""
+    original_image = imread(image_path)
+    if original_image is None: raise ValueError(f"Image not found at {image_path}")
+    return _encode(original_image, output_path)
+
 
 class CollageEngine:
-    # Statically define all classes the model was trained on.
+    # Every class the detector knows, in TextCollage's spelling.
     all_possible_classes = ['ruler', 'barcode', 'colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'weights']
 
     def __init__(
         self,
-        model_xml_path,
-        collage_classes, 
+        detector,
+        collage_classes,
         engine="gemini",
         hide_long_objects=False,
         draw_overlay=False,
         output_path="collage_output.jpg", # Can be None
     ):
+        """`detector` is a textcollage.detector.ArchivalDetector (or anything with
+        detect(image_bgr) -> [Detection(cls, score, box)])."""
         self.engine = engine
         self.hide_long_objects = hide_long_objects
         self.draw_overlay = draw_overlay
         self.output_path = output_path
         self.collage_classes = collage_classes
-        self.core = Core()
-        self.model = self.core.read_model(model=model_xml_path)
-        self.compiled_model = self.core.compile_model(self.model, device_name="CPU")
-        self.input_layer = self.compiled_model.input(0)
-        self.output_layer = self.compiled_model.output(0)
-
+        self.detector = detector
         self.inference_lock = threading.Lock()
 
-    def preprocess_image(self, image):
-        resized = cv2.resize(image, (640, 640))
-        img = resized.transpose(2, 0, 1)
-        img = np.expand_dims(img, axis=0).astype(np.float32) / 255.0
-        return img
-
     def get_bounding_boxes(self, image_path):
-        original_image = cv2.imread(image_path)
+        original_image = imread(image_path)
         if original_image is None: raise ValueError(f"Image not found at {image_path}")
-        original_height, original_width, _ = original_image.shape
-        input_tensor = self.preprocess_image(original_image)
         with self.inference_lock:
-            outputs = self.compiled_model([input_tensor])[self.output_layer]
-        predictions = np.squeeze(outputs).T
-
-        boxes, confidences, class_ids = [], [], []
-        x_scale, y_scale = original_width / 640, original_height / 640
-
-        for pred in predictions:
-            box_coords, class_probs = pred[:4], pred[4:]
-            class_id = np.argmax(class_probs)
-            confidence = class_probs[class_id]
-            if confidence > 0.25:
-                cx, cy, w, h = box_coords
-                x1 = int((cx - w / 2) * x_scale); y1 = int((cy - h / 2) * y_scale)
-                x2 = int((cx + w / 2) * x_scale); y2 = int((cy + h / 2) * y_scale)
-                boxes.append([x1, y1, x2 - x1, y2 - y1])
-                confidences.append(float(confidence))
-                class_ids.append(class_id)
-        
-        indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.25, nms_threshold=0.45)
+            detections = self.detector.detect(original_image)
         final_boxes = {name: [] for name in self.all_possible_classes}
-        if len(indices) > 0:
-            for i in indices.flatten():
-                x, y, w, h = boxes[i]
-                box = [x, y, x + w, y + h]
-                class_name = self.all_possible_classes[class_ids[i]]
-                final_boxes[class_name].append(box)
+        for det in detections:
+            key = _class_key(det.cls)
+            if key not in final_boxes:
+                continue
+            x1, y1, x2, y2 = (int(v) for v in det.box)
+            if x2 > x1 and y2 > y1:
+                final_boxes[key].append([x1, y1, x2, y2])
         return original_image, final_boxes
-    
+
     def merge_overlapping_boxes(self, boxes):
         if not boxes: return []
         box_list = [list(b) for b in boxes]
@@ -210,22 +208,7 @@ class CollageEngine:
         return final_output
     
     def run_fake(self, image_path): # Produce the same output without making the collage
-        original_image = cv2.imread(image_path)
-        final_output = {"position_original": {}, "position_collage": {}, "base64image_text_collage": None}
-
-        # Always encode the image to a JPG byte stream in memory
-        success, jpg_array = cv2.imencode('.jpg', original_image)
-        if not success: raise RuntimeError("Failed to encode collage image to JPG.")
-        # Convert numpy array to actual bytes
-        jpg_bytes = jpg_array.tobytes()
-        if self.output_path:
-            # If a path is provided, write the bytes to disk
-            with open(self.output_path, 'wb') as f:
-                f.write(jpg_bytes) 
-        else:
-            # If no path, encode bytes to base64 and add to JSON output
-            final_output['base64image_text_collage'] = base64.b64encode(jpg_bytes).decode('utf-8')
-        return final_output
+        return whole_image(image_path, self.output_path)
 
     def draw_overlay_on_collage(self, image, positions):
         overlay = image.copy()
@@ -240,49 +223,3 @@ class CollageEngine:
                 cv2.rectangle(overlay, (x1, y1 - h - 4), (x1 + w, y1), (0, 255, 0), -1)
                 cv2.putText(overlay, label, (x1, y1 - 2), font, 0.5, (0, 0, 0), 1)
         return overlay
-
-if __name__ == "__main__":
-    model_path = "models/openvino/best.xml"
-    image_to_process = "D:/D_Desktop/temp_50_2/ASC_3091209872_Hydrangeaceae_Philadelphus_microphyllus.jpg"
-    classes_to_render = ['barcode', 'label', 'map']
-
-    # --- Example 1: Save to file ---
-    print("--- Running Example 1: Saving output to file ---")
-    engine_file = CollageEngine(
-        model_xml_path=model_path,
-        collage_classes=classes_to_render,
-        engine="gpt",
-        output_path="out.jpg"
-    )
-    json_data = engine_file.run(image_to_process)
-    print("JSON output (file mode):")
-    print(json.dumps(json_data, indent=2))
-    print("\nImage saved to out.jpg")
-
-    engine_file = CollageEngine(
-            model_xml_path=model_path,
-            collage_classes=classes_to_render,
-            engine="gpt",
-            output_path="out_fake.jpg"
-        )
-    json_data = engine_file.run_fake(image_to_process)
-    print("JSON output (file mode):")
-    print(json.dumps(json_data, indent=2))
-    print("\nImage saved to out_fake.jpg")
-
-    # --- Example 2: Return in memory ---
-    print("\n--- Running Example 2: Returning data in memory ---")
-    engine_memory = CollageEngine(
-        model_xml_path=model_path,
-        collage_classes=classes_to_render,
-        output_path=None # Key change: No output file
-    )
-    json_data_with_b64 = engine_memory.run(image_to_process)
-    json_data_with_b64_fake = engine_memory.run_fake(image_to_process)
-    
-    # Or access the base64 string from the JSON
-    if json_data_with_b64['base64image_text_collage']:
-        print("Base64 image string is present in the JSON output.")
-        # print(json.dumps(json_data_with_b64, indent=2)) # This would be very long, so we skip printing it all
-    else:
-        print("Base64 image string is NOT present in the JSON output.")

@@ -509,12 +509,15 @@ def create_app(*, token: str | None = None, config: dict | None = None) -> Flask
     flask_app.config["VVL_TOKEN"] = token or os.environ.get("VVL_TOKEN") or secrets.token_urlsafe(32)
     flask_app.config.update(config or {})
 
-    processor = VoucherVisionProcessor()
+    # VVL_DETECTOR_FACTORY (tests): () -> detector, instead of the downloaded label detector.
+    processor = VoucherVisionProcessor(detector_factory=flask_app.config.get("VVL_DETECTOR_FACTORY"))
+    runtime_obj = Runtime(flask_app.config)
+    runtime_obj.detector.on_installed = processor.reset_collage
     flask_app.extensions["vvl"] = {
         "processor": processor,
         "provider_state": ProviderState(),
         # Phase 2: jobs, local model store, engine installer and supervisor.
-        "runtime": Runtime(flask_app.config),
+        "runtime": runtime_obj,
     }
 
     @flask_app.before_request

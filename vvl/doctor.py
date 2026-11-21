@@ -52,15 +52,19 @@ def _prompts():
 
 
 def _textcollage():
-    model = paths.textcollage_model_path()
-    if not model.is_file():
-        return "fail", f"Detector model missing: {model}"
+    from vvl import label_detector
     from vvl.pipeline import VoucherVisionProcessor
 
+    lock = label_detector.load_lock()
+    fmt = label_detector.default_format()
+    if not label_detector.is_installed(lock, fmt):
+        size_mb = label_detector.size_bytes(lock, fmt) / 1e6
+        return "warn", (f"Label detector not downloaded yet ({size_mb:.0f} MB; `vvl serve` downloads it at "
+                        "first start). Until then the whole image is used instead of a label collage.")
     processor = VoucherVisionProcessor()
     if processor.collage_engine is None:
-        return "fail", "The TextCollage detector could not be loaded (OpenVINO)."
-    return "ok", "Label detector loads (OpenVINO, CPU)"
+        return "fail", f"The label detector could not be loaded: {processor.collage_status()['load_error']}"
+    return "ok", f"Label detector loads ({label_detector.RUNTIME_LABELS[fmt]})"
 
 
 def _formats():

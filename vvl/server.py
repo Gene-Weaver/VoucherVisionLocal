@@ -138,6 +138,19 @@ def _url_host(host: str) -> str:
     return host
 
 
+def _prepare_detector(runtime, processor) -> None:
+    """Load the label detector, or start its download at first start
+    (VVL_DETECTOR_AUTO_DOWNLOAD=0 turns the download off)."""
+    try:
+        if runtime.detector.is_installed():
+            processor.warm_up()
+        elif os.environ.get("VVL_DETECTOR_AUTO_DOWNLOAD", "1") != "0":
+            logger.info("Downloading the label detector (first start).")
+            runtime.detector.install()
+    except Exception:  # noqa: BLE001
+        logger.exception("Could not prepare the label detector.")
+
+
 def serve(*, host: str | None = None, port: int | None = None, threads: int = 8) -> int:
     host_explicit = host is not None
     host = host or DEFAULT_HOST
@@ -189,7 +202,7 @@ def serve(*, host: str | None = None, port: int | None = None, threads: int = 8)
         start_owner_watchdog(owner_pid, exit_func=_stop_and_exit)
 
     processor = application.extensions["vvl"]["processor"]
-    threading.Thread(target=processor.warm_up, name="vvl-warmup", daemon=True).start()
+    threading.Thread(target=_prepare_detector, args=(runtime, processor), name="vvl-warmup", daemon=True).start()
 
     try:
         from waitress import create_server

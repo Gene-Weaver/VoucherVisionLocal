@@ -90,10 +90,6 @@ def registry_dir() -> Path:
     return Path(__file__).resolve().parent / "registry"
 
 
-def textcollage_model_path() -> Path:
-    return app_root() / "textcollage" / "models" / "openvino" / "best.xml"
-
-
 def default_models_dir() -> Path:
     return home() / "models"
 

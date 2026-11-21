@@ -1,4 +1,4 @@
-"""Background jobs for long operations (model downloads, engine installs).
+"""Background jobs for long operations (model downloads, engine installs, the label detector).
 
 docs/API.md section 9, "Jobs". A job runs in its own thread and reports
 progress through a `Job` object; routes return `Job.to_dict()` snapshots.
@@ -28,7 +28,7 @@ from typing import Callable
 
 logger = logging.getLogger(__name__)
 
-JOB_KINDS = ("model_download", "engine_install")
+JOB_KINDS = ("model_download", "engine_install", "detector_download")
 JOB_STATES = ("queued", "running", "verifying", "done", "error", "canceled")
 ACTIVE_STATES = ("queued", "running", "verifying")
 FILE_STATES = ("pending", "running", "verifying", "done", "skipped", "error")

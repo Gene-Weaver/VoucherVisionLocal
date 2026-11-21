@@ -26,7 +26,7 @@ from collections import OrderedDict
 
 from werkzeug.utils import secure_filename
 
-from vvl import paths, stages
+from vvl import label_detector, paths, stages
 from vvl.engines.base import (
     DEFAULT_THINKING_LEVEL,
     EngineError,
@@ -114,13 +114,16 @@ class VoucherVisionProcessor:
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "tif", "tiff", "heic", "heif", "pdf"}
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB, room for multi-page PDFs
 
-    def __init__(self, max_concurrent=32, collage_model_path=None, elevation_lookup=None):
+    def __init__(self, max_concurrent=32, detector_factory=None, elevation_lookup=None):
         self.throttler = RequestThrottler(max_concurrent)
         self.collage_engine_lock = threading.Lock()
         self._collage_init_lock = threading.Lock()
         self._collage_engine = None
         self._collage_error = None
-        self.collage_model_path = str(collage_model_path or paths.textcollage_model_path())
+        self._missing_logged = False
+        # detector_factory() -> textcollage.detector.ArchivalDetector, or raises
+        # label_detector.DetectorNotInstalled. Injectable for tests.
+        self.detector_factory = detector_factory or label_detector.load_detector
         # elevation_lookup(record) -> int | None. Injectable for tests.
         self.elevation_lookup = elevation_lookup or vvgo_client.elevation_for_record
 
@@ -131,28 +134,52 @@ class VoucherVisionProcessor:
 
     @property
     def collage_engine(self):
-        """TextCollage engine, created on first use (OpenVINO compile takes ~0.3 s)."""
+        """TextCollage engine, created on first use; None until the label detector is
+        downloaded (asked again on every call, so it appears once the download ends)
+        or when it failed to load (kept until reset_collage())."""
         if self._collage_engine is None and self._collage_error is None:
             with self._collage_init_lock:
                 if self._collage_engine is None and self._collage_error is None:
                     try:
-                        if not os.path.exists(self.collage_model_path):
-                            raise FileNotFoundError(f"CollageEngine model not found at {self.collage_model_path}")
-                        from textcollage.CollageEngine import CollageEngine
-
-                        self._collage_engine = CollageEngine(
-                            model_xml_path=self.collage_model_path,
-                            collage_classes=COLLAGE_CLASSES,
-                            engine=COLLAGE_RESIZE_METHOD,
-                            output_path=None,          # return the collage in memory
-                            hide_long_objects=False,
-                            draw_overlay=False,
-                        )
-                        logger.info("CollageEngine initialized")
+                        detector = self.detector_factory()
+                    except label_detector.DetectorNotInstalled as e:
+                        if not self._missing_logged:
+                            self._missing_logged = True
+                            logger.info("No label collage yet: %s.", e)
+                        return None
                     except Exception as e:
                         self._collage_error = f"{type(e).__name__}: {e}"
-                        logger.error("Failed to initialize CollageEngine: %s", self._collage_error)
+                        logger.error("Failed to load the label detector: %s", self._collage_error)
+                        return None
+                    from textcollage.CollageEngine import CollageEngine
+
+                    self._collage_engine = CollageEngine(
+                        detector=detector,
+                        collage_classes=COLLAGE_CLASSES,
+                        engine=COLLAGE_RESIZE_METHOD,
+                        output_path=None,          # return the collage in memory
+                        hide_long_objects=False,
+                        draw_overlay=False,
+                    )
+                    logger.info("CollageEngine ready (label detector: %s)", detector.label)
         return self._collage_engine
+
+    def reset_collage(self):
+        """Forget the engine and any load error (after the detector's download), then load it again."""
+        with self._collage_init_lock:
+            self._collage_engine = None
+            self._collage_error = None
+            self._missing_logged = False
+        threading.Thread(target=self.warm_up, name="vvl-detector-load", daemon=True).start()
+
+    def collage_status(self):
+        """What the Setup page and `vvl doctor` show about the loaded detector."""
+        engine = self._collage_engine
+        return {
+            "loaded": engine is not None,
+            "loaded_runtime": engine.detector.label if engine is not None else None,
+            "load_error": self._collage_error,
+        }
 
     def warm_up(self):
         """Create the collage engine now (called from a background thread at startup)."""
@@ -209,17 +236,20 @@ class VoucherVisionProcessor:
     # ----------------------------------------------------------- collage --
 
     def _run_collage(self, image_path, *, use_original):
-        """(collage_json_data, collage_ran). Falls back to the whole image when
-        TextCollage finds no labels or fails, instead of failing the request."""
-        engine = self.collage_engine
+        """(collage_json_data, collage_ran). Falls back to the whole image when the
+        label detector is not downloaded yet, finds no labels, or fails, instead of
+        failing the request."""
+        from textcollage.CollageEngine import whole_image
+
+        engine = None if use_original else self.collage_engine
+        if engine is None:
+            return whole_image(image_path), False
         with self.collage_engine_lock:
-            if use_original:
-                return engine.run_fake(image_path), False
             try:
                 return engine.run(image_path), True
             except Exception as e:
                 logger.warning("TextCollage could not build a collage (%s); using the whole image.", e)
-                return engine.run_fake(image_path), False
+                return whole_image(image_path), False
 
     # ------------------------------------------------------------- images --
 
@@ -286,9 +316,6 @@ class VoucherVisionProcessor:
                     return _error_payload("INVALID_INPUT", "No parsing model or prompt was selected."), 400
 
                 # --- STAGE 1: COLLAGE ENGINE PRE-PROCESSING ---
-                if self.collage_engine is None:
-                    return _error_payload("INTERNAL_ERROR", "Collage Engine is not available on the server."), 503
-
                 temp_dir = tempfile.mkdtemp(prefix="vvl-", dir=str(paths.ensure_dir(paths.temp_dir())))
                 safe_name = secure_filename(file.filename) or "upload"
                 original_temp_path = os.path.join(temp_dir, f"original_{safe_name}")
