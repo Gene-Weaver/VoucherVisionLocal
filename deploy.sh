@@ -4,11 +4,16 @@
 #
 # Modeled on VoucherVisionGO-Editor/deploy.sh. Runs on macOS only (Apple code
 # signing and notarization need it). Builds:
-#   macOS  Apple Silicon + Intel: .dmg (people download) and .zip (the updater uses it)
-#   Linux  x86_64 AppImage
-# then notarizes and staples each DMG and creates the GitHub release that the
-# installed apps update from. Windows comes later (the "win" block in
-# desktop/package.json is ready but not built here).
+#   macOS    Apple Silicon: .dmg (people download) and .zip (the updater uses it)
+#   Windows  x64 NSIS installer (the updater uses it too); not code-signed yet
+#   Linux    x86_64 AppImage
+# then notarizes and staples the DMG and creates the GitHub release that the
+# installed apps update from.
+#
+# No Intel Mac build: onnxruntime, openvino and pymupdf in uv.lock have no
+# macOS x86_64 wheels, so the first-launch Python setup would fail there. To
+# bring Intel back, fix uv.lock first, then build both Mac architectures in ONE
+# electron-builder run (--mac --arm64 --x64) so latest-mac.yml lists both zips.
 #
 # Before running: set the version in VERSION, commit, and push to main.
 # Signing secrets come from .env.signing (gitignored; see .env.signing.example).
@@ -100,7 +105,7 @@ if [ "$SKIP_BUILDS" -ne 1 ]; then
 
     # Stage once for every target: the parallel builds below share it.
     echo "Staging backend, Python project and bundled uv..."
-    (cd desktop && npm run stage -- --targets mac-arm64,mac-x64,linux-x64)
+    (cd desktop && npm run stage -- --targets mac-arm64,win-x64,linux-x64)
     echo ""
 
     echo "Building all platforms in parallel..."
@@ -109,18 +114,24 @@ if [ "$SKIP_BUILDS" -ne 1 ]; then
     LOGDIR=$(mktemp -d)
     trap 'rm -rf "$LOGDIR"' EXIT
 
-    # Both Mac architectures in ONE electron-builder run, so latest-mac.yml lists
-    # both zips. (Separate parallel runs each write latest-mac.yml and the last
-    # one wins: Apple Silicon Macs would then update to the Intel build.)
-    (cd desktop && npm run build:only -- --mac --arm64 --x64 > "$LOGDIR/mac.raw.log" 2>&1) &
+    # One electron-builder run per platform. Each writes its own updater feed
+    # (latest-mac.yml, latest.yml, latest-linux.yml). If Intel Macs come back,
+    # build both Mac architectures in this one run (--arm64 --x64): separate
+    # runs each write latest-mac.yml and the last one wins.
+    (cd desktop && npm run build:only -- --mac --arm64 > "$LOGDIR/mac.raw.log" 2>&1) &
     PID_MAC=$!
+
+    # Not code-signed: Windows SmartScreen warns on first run. electron-builder
+    # signs it once WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD are set in .env.signing.
+    (cd desktop && npm run build:only -- --win --x64 > "$LOGDIR/win-x64.raw.log" 2>&1) &
+    PID_WIN=$!
 
     (cd desktop && npm run build:only -- --linux --x64 > "$LOGDIR/linux-x64.raw.log" 2>&1) &
     PID_LINUX=$!
 
     # Wait for all and track failures
     FAILED=0
-    for PID_NAME in "mac:$PID_MAC" "linux-x64:$PID_LINUX"; do
+    for PID_NAME in "mac:$PID_MAC" "win-x64:$PID_WIN" "linux-x64:$PID_LINUX"; do
         NAME="${PID_NAME%%:*}"
         PID="${PID_NAME##*:}"
         echo "  [$NAME] Building..."
@@ -147,17 +158,26 @@ if [ "$SKIP_BUILDS" -ne 1 ]; then
         exit 1
     fi
 
-    # latest-mac.yml must offer both architectures to the updater.
-    for arch in arm64 x64; do
-        if ! grep -q "VoucherVisionLocal-${VERSION}-${arch}.zip" desktop/build/latest-mac.yml; then
-            echo "ERROR: desktop/build/latest-mac.yml does not list the ${arch} zip."
+    # Each updater feed must name this version's file for its platform.
+    for FEED_FILE in "latest-mac.yml:VoucherVisionLocal-${VERSION}-arm64.zip" \
+                     "latest.yml:VoucherVisionLocal-Setup-${VERSION}-x64.exe" \
+                     "latest-linux.yml:VoucherVisionLocal-${VERSION}-x86_64.AppImage"; do
+        FEED="desktop/build/${FEED_FILE%%:*}"
+        FILE="${FEED_FILE#*:}"
+        if [ ! -f "$FEED" ] || ! grep -q "$FILE" "$FEED"; then
+            echo "ERROR: $FEED does not list $FILE."
             exit 1
         fi
     done
+    # An Apple Silicon Mac must never be offered an Intel build.
+    if grep -q -- "-x64.zip" desktop/build/latest-mac.yml; then
+        echo "ERROR: desktop/build/latest-mac.yml lists an Intel zip, but there is no Intel build."
+        exit 1
+    fi
 
-    # 3a. The apps must be signed and notarized (unless --allow-unsigned for a test build).
+    # 3a. The app must be signed and notarized (unless --allow-unsigned for a test build).
     SIGNED=1
-    for APP in desktop/build/mac-arm64/VoucherVisionLocal.app desktop/build/mac/VoucherVisionLocal.app; do
+    for APP in desktop/build/mac-arm64/VoucherVisionLocal.app; do
         if [ ! -d "$APP" ]; then
             echo "  ⚠ $APP not found"
             SIGNED=0
@@ -193,7 +213,7 @@ if [ "$SKIP_BUILDS" -ne 1 ]; then
     if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
         echo "Notarizing and stapling macOS DMG containers..."
         echo ""
-        for arch in arm64 x64; do
+        for arch in arm64; do
             DMG="${ART}-${arch}.dmg"
             if [ ! -f "$DMG" ]; then
                 echo "  ⚠ $DMG not found, skipping"
@@ -240,11 +260,43 @@ fi
 
 # 4. Summary
 echo "=== Build outputs ==="
-ls -lhS desktop/build/*.dmg desktop/build/*.zip desktop/build/*.AppImage desktop/build/latest*.yml 2>/dev/null
+ls -lhS desktop/build/*.dmg desktop/build/*.zip desktop/build/*.exe desktop/build/*.AppImage desktop/build/latest*.yml 2>/dev/null
 echo ""
+
+# What the release carries. "#Label" sets the name GitHub shows. The .blockmap
+# files let the Mac and Windows updaters download only the changed parts.
+ASSETS=(
+    "${ART}-arm64.dmg#macOS (Apple Silicon)"
+    "desktop/build/VoucherVisionLocal-Setup-${VERSION}-x64.exe#Windows Installer (64-bit, auto-update)"
+    "${ART}-x86_64.AppImage#Linux (64-bit)"
+    "${ART}-arm64.zip"
+    "${ART}-arm64.zip.blockmap"
+    "desktop/build/VoucherVisionLocal-Setup-${VERSION}-x64.exe.blockmap"
+    "desktop/build/latest-mac.yml"
+    "desktop/build/latest.yml"
+    "desktop/build/latest-linux.yml"
+)
+
+NOTES=$(cat <<EOF
+Download the file for your computer:
+
+- **macOS, Apple Silicon (M1 and newer):** \`VoucherVisionLocal-${VERSION}-arm64.dmg\`. Intel Macs are not supported yet.
+- **Windows, 64-bit:** \`VoucherVisionLocal-Setup-${VERSION}-x64.exe\`. The installer is not code-signed yet, so Windows may say "Windows protected your PC": click **More info**, then **Run anyway**.
+- **Linux, 64-bit:** \`VoucherVisionLocal-${VERSION}-x86_64.AppImage\`. Make it executable (\`chmod +x\`) and run it. Ubuntu 24.04 and newer need \`sudo apt install libfuse2t64\` first.
+
+The first start sets up Python and its packages (a download of several hundred MB). After that, the app updates itself from the newest release.
+EOF
+)
 
 # 5. Create GitHub release (unless --skip-release)
 if [ "$SKIP_RELEASE" -ne 1 ] && [ "$SKIP_BUILDS" -ne 1 ]; then
+    for A in "${ASSETS[@]}"; do
+        if [ ! -f "${A%%#*}" ]; then
+            echo "ERROR: release file missing: ${A%%#*}"
+            exit 1
+        fi
+    done
+
     echo "Creating GitHub release $TAG..."
 
     # Delete existing release/tag if re-deploying same version
@@ -252,18 +304,11 @@ if [ "$SKIP_RELEASE" -ne 1 ] && [ "$SKIP_BUILDS" -ne 1 ]; then
     git tag -d "$TAG" 2>/dev/null || true
     git push origin ":refs/tags/$TAG" 2>/dev/null || true
 
-    gh release create "$TAG" \
-      "${ART}-arm64.dmg#macOS (Apple Silicon)" \
-      "${ART}-x64.dmg#macOS (Intel)" \
-      "${ART}-arm64.zip" \
-      "${ART}-x64.zip" \
-      "${ART}-x86_64.AppImage#Linux (64-bit)" \
-      "desktop/build/latest-mac.yml" \
-      "desktop/build/latest-linux.yml" \
+    gh release create "$TAG" "${ASSETS[@]}" \
       --repo "$REPO" \
       --target "$COMMIT" \
       --title "VoucherVisionLocal $TAG" \
-      --notes "See [README](https://github.com/${REPO}#readme) for details and installation instructions."
+      --notes "$NOTES"
 
     echo ""
     echo "Release created: https://github.com/${REPO}/releases/tag/$TAG"
@@ -272,12 +317,9 @@ else
     echo ""
     echo "To release manually:"
     echo "  gh release create $TAG \\"
-    echo "    \"${ART}-arm64.dmg\" \\"
-    echo "    \"${ART}-x64.dmg\" \\"
-    echo "    \"${ART}-arm64.zip\" \\"
-    echo "    \"${ART}-x64.zip\" \\"
-    echo "    \"${ART}-x86_64.AppImage\" \\"
-    echo "    \"desktop/build/latest-mac.yml\" \"desktop/build/latest-linux.yml\" \\"
+    for A in "${ASSETS[@]}"; do
+        echo "    \"$A\" \\"
+    done
     echo "    --repo $REPO --target $COMMIT \\"
     echo "    --title \"VoucherVisionLocal $TAG\""
 fi

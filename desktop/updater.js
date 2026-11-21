@@ -132,7 +132,7 @@ function installAndQuit({ relaunch }) {
       autoUpdater.quitAndInstall();
       return true;
     }
-    // Linux AppImage (and Windows later): replace the app file now, then quit.
+    // Linux AppImage and Windows (NSIS): replace the app now, then quit.
     const ok = autoUpdater.install(true, Boolean(relaunch));
     return Boolean(ok);
   } catch (err) {

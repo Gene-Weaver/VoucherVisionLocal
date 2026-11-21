@@ -9,12 +9,29 @@ latest GitHub release.
 
 | File | Who uses it |
 |---|---|
-| `VoucherVisionLocal-<v>-arm64.dmg`, `-x64.dmg` | people installing on macOS (Apple Silicon, Intel) |
-| `VoucherVisionLocal-<v>-arm64.zip`, `-x64.zip` | the macOS updater |
+| `VoucherVisionLocal-<v>-arm64.dmg` | people installing on macOS (Apple Silicon) |
+| `VoucherVisionLocal-<v>-arm64.zip` (+ `.blockmap`) | the macOS updater |
+| `VoucherVisionLocal-Setup-<v>-x64.exe` (+ `.blockmap`) | Windows: the installer, and the Windows updater |
 | `VoucherVisionLocal-<v>-x86_64.AppImage` | Linux: download, `chmod +x`, run; it also updates itself |
-| `latest-mac.yml`, `latest-linux.yml` | the updater: newest version, file names, sha512 sums |
+| `latest-mac.yml`, `latest.yml` (Windows), `latest-linux.yml` | the updater: newest version, file names, sha512 sums |
 
-Windows is prepared in `desktop/package.json` (`win`, `nsis`) but not built yet.
+The `.blockmap` files let the updaters download only the parts that changed.
+
+**No Intel Mac build.** `onnxruntime` 1.32.0, `openvino` 2026.4.1 and
+`pymupdf` 2.1 in `uv.lock` have no macOS x86_64 wheels (the first two have no
+source package either), so `uv sync` fails on an Intel Mac and the first-launch
+setup cannot finish. Checked under Rosetta on 2026-11-20. To bring Intel back:
+add `sys_platform == 'darwin' and platform_machine == 'x86_64'` to
+`tool.uv.required-environments` in `pyproject.toml` (uv then locks versions
+that have Intel wheels, or says none exist), re-lock, add `x64` to the `mac`
+targets in `desktop/package.json`, and build both Mac architectures in one
+`--mac --arm64 --x64` run in `deploy.sh` so `latest-mac.yml` lists both zips.
+
+**Windows is not code-signed** (neither is the Editor's). SmartScreen shows
+"Windows protected your PC" until the user clicks More info, then Run anyway.
+Updates still work. To sign, put `WIN_CSC_LINK` (the .pfx file) and
+`WIN_CSC_KEY_PASSWORD` in `.env.signing`; electron-builder picks them up.
+The Windows build is made on the Mac and has not been run on Windows yet.
 
 ## Versions
 
@@ -34,6 +51,11 @@ The pinned pieces move only with a release:
 
 1. Set the new version in `VERSION`, commit, push to `main`.
 2. `./deploy.sh`
+
+Build from a git clone outside any synced folder (Dropbox, iCloud Drive). A
+synced `node_modules`, `desktop/build` or `.git` is shared with the other
+computers, and a Mac build there replaces their Linux Electron and can leave
+their git objects half-copied.
 
 `deploy.sh` refuses to run unless the working tree is clean and `main` equals
 `origin/main`, and it refuses to release Mac builds that are not signed and
