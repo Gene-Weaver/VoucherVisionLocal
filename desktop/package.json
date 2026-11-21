@@ -76,6 +76,42 @@
       "entitlementsInherit": "build-resources/entitlements.mac.plist",
       "notarize": true
     },
+    "dmg": {
+      "background": "build-resources/dmg-background.tiff",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 150,
+          "y": 150,
+          "type": "file"
+        },
+        {
+          "x": 390,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 150,
+          "y": 560,
+          "type": "file",
+          "path": "build-resources/dmg-background.tiff",
+          "name": ".background.tiff"
+        },
+        {
+          "x": 390,
+          "y": 560,
+          "type": "file",
+          "path": "build-resources/dmg-volume.icns",
+          "name": ".VolumeIcon.icns"
+        }
+      ],
+      "icon": "build-resources/dmg-volume.icns"
+    },
     "win": {
       "target": [
         {
