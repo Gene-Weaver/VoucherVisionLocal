@@ -108,6 +108,11 @@ const ICONS = {
     stop: [['rect', { x: 5, y: 5, width: 14, height: 14, rx: 2 }]],
     copy: [['rect', { x: 9, y: 9, width: 13, height: 13, rx: 2 }], ['path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' }]],
     settings: [['path', { d: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6' }]],
+    edit: [['path', { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' }], ['path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' }]],
+    columns: [['rect', { x: 3, y: 3, width: 18, height: 18, rx: 2 }], ['path', { d: 'M12 3v18' }]],
+    arrowUp: [['path', { d: 'm18 15-6-6-6 6' }]],
+    arrowDown: [['path', { d: 'm6 9 6 6 6-6' }]],
+    save: [['path', { d: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z' }], ['path', { d: 'M17 21v-8H7v8M7 3v5h8' }]],
 };
 
 export function icon(name, { size = 18, label = null, className = 'icon' } = {}) {

@@ -152,8 +152,9 @@ def test_process_request_errors(client, auth):
 
 def test_process_uses_user_prompt(client, auth):
     data = yaml.safe_load((paths.prompts_builtin_dir() / "SLTPvM_skeletal.yaml").read_text(encoding="utf-8"))
+    data["prompt_name"] = "custom"
     data["rules"] = {"catalogNumber": "Barcode.", "myCustomField": "Anything."}
-    data["mapping"] = {"MISC": ["catalogNumber", "myCustomField"]}
+    data["mapping"] = {"GEOGRAPHY": ["catalogNumber"], "TAXONOMY": [], "COLLECTING": ["myCustomField"]}
     assert client.post("/v1/prompts/import", headers=auth,
                        json={"name": "custom.yaml", "yaml_text": yaml.safe_dump(data)}).status_code == 201
     body = post_image(client, auth, {"prompt": "custom.yaml"}).get_json()
