@@ -92,3 +92,60 @@ first-launch Python setup and the updater work.
 - The VoucherVisionGO-Editor has the `latest-mac.yml` bug described above
   (its releases list only the x64 zip). Report it to the owner; do not fix the
   Editor unless he asks.
+
+## Done on the Mac (2026-11-20)
+
+Releases v0.1.0, v0.1.1 and v0.1.2 are on GitHub: Apple Silicon DMG + zip
+(signed, notarized, stapled), the Windows NSIS installer (not code-signed, not
+run on Windows yet), and the Linux AppImage (not started on Linux yet).
+
+Checked on an M2 Pro, macOS 26.7.1:
+
+- Unsigned smoke test (step 3) and the signed build (step 4): every check above
+  passes. The bundled uv is signed with the hardened runtime by electron-builder
+  itself, so `mac.binaries` is not needed.
+- First run in the owner's account (step 5), launched through LaunchServices
+  from a quarantined, translocated copy: Python setup, the Setup page, a demo
+  run, and the pinned `macos-arm64-metal` engine b12359 install with its
+  self-test. Quit leaves no backend or engine process.
+- Updates (step 7): 0.1.0 -> 0.1.1 by "Update ready" (restarted as 0.1.1) and
+  0.1.1 -> 0.1.2 by a normal quit (the next start is 0.1.2); still arm64. The
+  second update was differential: 3.7 MB of 140 MB, from the zip blockmap now
+  in each release. The quit question appeared both times a download was running.
+
+Changed: `deploy.sh` builds the Windows installer as the Editor does, builds
+the Mac for Apple Silicon only, checks every updater feed and uploads the
+blockmaps; the DMG window shows the app, an arrow and Applications
+(`desktop/scripts/make_dmg_background.py`).
+
+Not built: Intel Macs. `pymupdf` 2.1 and `onnxruntime` 1.32.0 (and, in 0.1.x,
+`openvino`) have no macOS x86_64 wheels; RELEASING.md says how to bring Intel back.
+
+Found on the way:
+
+- `open -a` from a VS Code terminal passes `ELECTRON_RUN_AS_NODE=1` to the app,
+  which then exits at once with no window and no log. Use
+  `env -u ELECTRON_RUN_AS_NODE open ...`. Turning off Electron's `runAsNode`
+  fuse in the build would make the installed app ignore it.
+- A copy that was not moved into Applications by the user runs translocated
+  (read-only, random path) and cannot update itself. Electron's
+  `app.moveToApplicationsFolder()` could offer the move.
+- `latest-mac.yml` lists the DMG's size from before stapling (about 2 KB less);
+  the updater reads only the zip entry, so this is harmless.
+- The DMG itself is not code-signed (notarized and stapled only, like the
+  Editor's); `dmg.sign: true` would sign it.
+- Two tests assume a Linux host and fail on a Mac:
+  `test_doctor_reports_engine_and_models` and `test_install_route_and_disk_check`.
+
+## Next: 0.2.0, the label detector (for the Linux agent)
+
+TextCollage now uses LeafMachine3's archival detector (YOLO26x at 1280),
+downloaded at first start: Core ML on macOS, onnxruntime on the CPU elsewhere.
+OpenVINO is gone. See docs/API.md section 15. Built and checked on the Mac
+(detections match LM3's on 21 sheets; 709 tests pass). Please check on Linux:
+
+1. `VVL_HOME=<scratch> uv run vvl detector --download` (the ONNX format), then
+   `VVL_TEST_DETECTOR_HOME=<scratch> uv run pytest tests/test_label_detector.py`.
+2. The full test suite, and fix the two Linux-only tests above for macOS.
+3. A first start of an AppImage built from this commit with an empty `VVL_HOME`:
+   the detector downloads by itself and the demo run gets a label collage.
