@@ -78,7 +78,8 @@ module.exports = async function setupPage(t) {
   await setTheme('light');
   await choose('openrouter');
   await must(`!document.querySelector('.setup-item[data-step="engine"]') && !document.querySelector('.setup-item[data-step="model"]')`, 'OpenRouter-only shows no engine or model steps');
-  await must(`!/llama|Download/.test(document.querySelector('.setup-list').textContent)`, 'OpenRouter-only never mentions llama.cpp or downloads');
+  // The label detector is the one download every choice needs; nothing else may mention one.
+  await must(`![...document.querySelectorAll('.setup-item:not([data-step="detector"])')].some((n) => /llama|Download/.test(n.textContent))`, 'OpenRouter-only never mentions llama.cpp or downloads');
   await must(stepIs('key', 'todo'), 'key step is to do');
   await bothThemes('02-openrouter-todo');
 

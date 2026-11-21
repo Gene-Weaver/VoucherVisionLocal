@@ -182,11 +182,12 @@ export function mountIndicator(host) {
         if (!current) return;
         const install = current.kind === 'engine_install';
         const detector = current.kind === 'detector_download';
-        const what = install ? 'Installing the engine' : (detector ? 'Downloading the label detector' : `Downloading ${current.label || 'a model'}`);
+        // Short enough for the narrow header (190 px); the tooltip says the rest.
+        const what = install ? 'Engine install' : (detector ? 'Label detector' : `Downloading ${current.label || 'a model'}`);
         const state = current.state === 'verifying' ? 'verifying' : (current.state === 'queued' ? 'waiting' : `${jobPercent(current)}%`);
         const waiting = active.filter((j) => j.kind === 'model_download' && j.state === 'queued' && j !== current).length;
         text.textContent = `${what} · ${state}${waiting ? ` · ${waiting} more queued` : ''}`;
-        button.title = install ? 'Show the engine install on the Engine tab' : (detector ? 'Show the label detector on the Setup page' : 'Show the download on the Models tab');
+        button.title = install ? 'Installing the engine. Show it on the Engine tab' : (detector ? 'Downloading the label detector. Show it on the Setup page' : 'Show the download on the Models tab');
     };
     on('jobs-changed', render);
     render();

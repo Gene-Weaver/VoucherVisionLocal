@@ -28,6 +28,11 @@ What the fake catalog contains
     *-vulkan       installs and runs
     *-cpu          installs and runs
 
+  Label detector
+    one 8 MB random file in place of the real model; it downloads at first start
+    (at --rate) and then a fixed-box stand-in (tests/fakes/fake_detector.py)
+    finds the "labels"
+
 Useful switches: --preinstall-engine and --preinstall-model put a working
 engine / the demo-small model on disk at start; --rate sets the download
 speed; --load-seconds and --reply-seconds slow the fake engine down so the
@@ -251,6 +256,28 @@ def host_os_arch() -> tuple[str, str]:
     return system, arch
 
 
+def fake_detector_factory():
+    sys.path.insert(0, str(REPO / "tests"))
+    from fakes.fake_detector import FakeDetector
+
+    return FakeDetector
+
+
+def build_detector_lock(files: ThrottledFiles, lock_path: Path) -> None:
+    """A copy of the real detector lock whose every format is one small random file on the fake server."""
+    import yaml
+
+    from vvl.label_detector import load_lock
+
+    lock = load_lock()
+    data = blob(8 * MB, 5)
+    for fmt in lock["formats"]:
+        entry = {"path": f"{fmt}/fake-detector.bin", "size_bytes": len(data), "sha256": sha(data)}
+        lock["formats"][fmt] = {"files": [entry]}
+        files.files[f"/{lock['repo']}/resolve/{lock['revision']}/{entry['path']}"] = data
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+
+
 def build_engine_lock(files: ThrottledFiles, lock_path: Path, load_seconds: float, reply_seconds: float) -> None:
     system, arch = host_os_arch()
     prefix = f"{system}-{'x64' if arch == 'x86_64' else 'arm64'}"
@@ -368,10 +395,12 @@ def main() -> int:
     os.environ["VVL_HF_BASE_URL"] = files.base_url
     registry_path = root / "models_local.yaml"
     lock_path = root / "engine.lock.yaml"
+    detector_lock_path = root / "archival_detector.lock.yaml"
 
     sys.path.insert(0, str(REPO))
     data = build_models(files, registry_path)
     build_engine_lock(files, lock_path, args.load_seconds, args.reply_seconds)
+    build_detector_lock(files, detector_lock_path)
     if args.preinstall_model:
         preinstall_model(models_dir, data)
     if args.preinstall_engine:
@@ -388,6 +417,8 @@ def main() -> int:
         "VVL_LOCAL_MODELS_PATH": str(registry_path),
         "VVL_ENGINE_LOCK_PATH": str(lock_path),
         "VVL_HF_BASE_URL": files.base_url,
+        "VVL_DETECTOR_LOCK_PATH": str(detector_lock_path),
+        "VVL_DETECTOR_FACTORY": fake_detector_factory(),
     })
     print(f"Fake downloads: {files.base_url} at {args.rate:g} MB/s. Scratch folder: {root}", flush=True)
     return serve(port=args.port)

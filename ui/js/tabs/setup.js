@@ -541,6 +541,7 @@ export async function mount(panel) {
     }
 
     function items() {
+        // The app, Python and the label detector are needed whatever the choice, so they show before it.
         const list = [appItem(), pythonItem(), detectorItem()];
         if (wantsCloud()) list.push(keyItem(), pickItem());
         if (wantsLocal()) list.push(systemItem(), folderItem(), engineItem(), modelItem());
@@ -598,17 +599,14 @@ export async function mount(panel) {
             replace(checklistHost, el('p', { class: 'help-text' }, 'Loading…'));
             return;
         }
-        if (data.usage === null) {
-            replace(checklistHost, el('p', { class: 'setup-empty' }, 'Choose an option above to see what is needed.'));
-            return;
-        }
+        const chosen = data.usage !== null;
         const list = items();
         const required = list.filter((i) => i.required);
-        const ready = required.length > 0 && required.every((i) => i.ok || (i.ok === undefined && i.status === 'done'));
+        const ready = chosen && required.length > 0 && required.every((i) => i.ok || (i.ok === undefined && i.status === 'done'));
         const doneCount = list.filter((i) => i.status === 'done').length;
         const keepFocus = document.activeElement === keyInput;
         replace(checklistHost,
-            el('p', { class: 'setup-progress' }, `${doneCount} of ${list.length} done`),
+            chosen ? el('p', { class: 'setup-progress' }, `${doneCount} of ${list.length} done`) : null,
             el('ol', { class: 'setup-list' }, list.map((item, i) => el('li', { class: ['setup-item', `is-${item.status}`], dataset: { step: item.id } },
                 statusIcon(item.status, i + 1),
                 el('div', { class: 'setup-item-body' },
@@ -618,6 +616,7 @@ export async function mount(panel) {
                     item.facts && item.facts.length ? el('div', { class: 'setup-facts' }, item.facts.map((f) => el('span', null, f))) : null,
                     item.extra || null),
                 item.action ? el('div', { class: 'setup-item-action' }, item.action) : null))),
+            chosen ? null : el('p', { class: 'setup-empty' }, 'Choose an option above to see the rest of what is needed.'),
             ready
                 ? el('div', { class: 'setup-ready', role: 'status' },
                     el('span', { class: 'setup-ready-icon', 'aria-hidden': 'true' }, icon('check', { size: 22 })),
