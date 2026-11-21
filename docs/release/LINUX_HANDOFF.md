@@ -203,3 +203,20 @@ Python setup (`uv.lock` changed) and then downloads the label detector.
 to 0.2.0, and check that its first start re-runs the Python setup and then
 downloads the label detector. Kept onnxruntime (not OpenVINO) on Linux and
 Windows, as measured above; the owner may still choose OpenVINO.
+
+## Done on Linux (0.2.0, 2026-11-21)
+
+Update 0.1.2 -> 0.2.0 on the AppImage that had updated itself from the released
+0.1.0 (its Python environment set up by 0.1.x), with scratch folders:
+
+- 0.1.2 found 0.2.0 at launch: differential download, 583 KB of 144 MB. Closing the
+  window installed it without a relaunch; the file's sha512 equals the v0.2.0
+  `latest-linux.yml`.
+- First start of 0.2.0: "Updating VoucherVisionLocal: This version uses updated
+  Python packages" (new key in `runtime/runtime.json`; `openvino` is gone from the
+  environment), then the label detector downloaded by itself in about 5 s ("Label
+  detector · 19%" ... "85%" in the header) and loaded.
+- Demo run: `text_collage: "True"`, 7 label and 1 barcode boxes. Closing the window
+  leaves no backend process.
+
+Nothing left for Linux from this handoff.
