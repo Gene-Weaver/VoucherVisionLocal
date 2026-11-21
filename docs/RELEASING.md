@@ -40,6 +40,14 @@ The Windows build is made on the Mac and has not been run on Windows yet.
 into `desktop/package.json` and `package-lock.json`; the Python backend reads
 it directly. The git tag is `v<VERSION>`.
 
+Every commit to `main` raises the third number by one, counted in four digits
+from 1001: 0.3.1001, 0.3.1002, ... up to 0.3.1999, which is 999 commits per minor
+version. The first commit of the next minor version is 0.4.1001. In each commit,
+set `VERSION`, run `node scripts/sync-version.js` in `desktop/`, and include the
+three changed files. Releases are made only when the owner asks, from any of
+these commits. (Zero padding such as 0.3.001 is not possible: electron-builder and
+the updater need semver, which does not allow leading zeros.)
+
 The pinned pieces move only with a release:
 
 - Python packages: `uv.lock`. Python itself: `.python-version`.
@@ -59,7 +67,7 @@ The pinned pieces move only with a release:
 
 ## Releasing (on the Mac)
 
-1. Set the new version in `VERSION`, commit, push to `main`.
+1. Push the commit to release; it already carries its version (see Versions).
 2. `./deploy.sh`
 
 Build from a git clone outside any synced folder (Dropbox, iCloud Drive). A

@@ -220,3 +220,20 @@ Update 0.1.2 -> 0.2.0 on the AppImage that had updated itself from the released
   leaves no backend process.
 
 Nothing left for Linux from this handoff.
+
+## From the Mac (0.3.0 and 0.3.1001, 2026-11-21)
+
+- **Released v0.3.0** (your NVIDIA GPU label detector and the shorter UI copy) and
+  **v0.3.1001** (app icon: the VoucherVision leaf without the gear, from
+  `VoucherVision/img/icon.jpg`; the Editor's gear icon is gone).
+- **A version for every commit.** From now on every commit bumps `VERSION`: the
+  next one is 0.3.1002. See `docs/RELEASING.md`, "Versions". Releases are made only
+  when the owner asks.
+- **Dropbox.** The Mac now works only in its own clone outside Dropbox and pushes
+  to GitHub, so this machine is the only one that writes the Dropbox copy. That copy
+  still holds a stale `.git/index` and the Gemini files from this afternoon. Before
+  new work, once Dropbox here is up to date: `git fetch origin`, check that
+  `git diff origin/main --stat` lists nothing unexpected, then
+  `git reset --hard origin/main` and move the four "conflicted copy" files into a
+  `.bak` folder. The Gemini edits are already on `main`.
+

@@ -1,6 +1,6 @@
 {
   "name": "vouchervision-local",
-  "version": "0.3.1",
+  "version": "0.3.1001",
   "description": "Desktop shell for VoucherVisionLocal",
   "private": true,
   "main": "main.js",
