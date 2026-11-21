@@ -251,6 +251,31 @@ def test_real_onnx_finds_the_labels(monkeypatch):
     assert all(d.score > 0.25 for d in found)
 
 
+# The ONNX detections on the fixture image on an Apple M2 Pro (onnxruntime 1.32.0, CPU).
+# Other machines must match them closely: the letterbox resize is bit-exact across CPUs
+# (INTER_LINEAR_EXACT), so only the CPU kernels' float rounding may differ.
+MAC_REFERENCE = [
+    ("Label", 0.9599, (4.09, 1023.55, 416.78, 1431.81)),
+    ("Label", 0.9160, (421.15, 1025.91, 858.64, 1237.66)),
+    ("Label", 0.8833, (0.00, 1.64, 1317.76, 839.36)),
+    ("Label", 0.8402, (0.00, 1432.37, 589.46, 1506.66)),
+    ("Label", 0.8225, (10.86, 1512.86, 348.78, 1592.60)),
+    ("Label", 0.8113, (0.00, 851.98, 1318.54, 1008.23)),
+    ("Barcode", 0.6007, (888.54, 1031.52, 1259.98, 1221.62)),
+    ("Label", 0.5234, (76.20, 1598.77, 257.30, 1667.02)),
+    ("Barcode", 0.4890, (888.92, 1031.79, 1259.93, 1222.39)),
+]
+
+
+@needs_real
+def test_real_onnx_matches_the_mac_reference(monkeypatch):
+    found = _real(monkeypatch, "onnx").detect(det.imread(FIXTURE_IMAGE))
+    assert [d.cls for d in found] == [c for c, _s, _b in MAC_REFERENCE]
+    for d, (_c, score, box) in zip(found, MAC_REFERENCE):
+        assert abs(d.score - score) < 0.005, (d, score)
+        assert max(abs(a - b) for a, b in zip(d.box, box)) < 0.5, (d, box)
+
+
 @needs_real
 @pytest.mark.skipif(sys.platform != "darwin", reason="Core ML runs on macOS only")
 def test_real_coreml_matches_onnx(monkeypatch):
