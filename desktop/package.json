@@ -13,7 +13,7 @@
     "dist": "npm run stage && electron-builder --publish never",
     "pack": "npm run stage && electron-builder --publish never --dir"
   },
-  "author": "Will Weaver",
+  "author": "William Weaver",
   "license": "AGPL-3.0-only",
   "devDependencies": {
     "electron": "45.4.1",
@@ -26,7 +26,7 @@
     "appId": "com.vouchervision.local",
     "productName": "VoucherVisionLocal",
     "artifactName": "VoucherVisionLocal-${version}-${arch}.${ext}",
-    "copyright": "Copyright (C) Will Weaver. Licensed under the GNU AGPL v3.",
+    "copyright": "Copyright (C) William Weaver. Licensed under the GNU AGPL v3.",
     "directories": {
       "output": "build",
       "buildResources": "build-resources"
