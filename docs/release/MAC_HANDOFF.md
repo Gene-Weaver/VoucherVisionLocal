@@ -137,15 +137,7 @@ Found on the way:
 - Two tests assume a Linux host and fail on a Mac:
   `test_doctor_reports_engine_and_models` and `test_install_route_and_disk_check`.
 
-## Next: 0.2.0, the label detector (for the Linux agent)
+## Next
 
-TextCollage now uses LeafMachine3's archival detector (YOLO26x at 1280),
-downloaded at first start: Core ML on macOS, onnxruntime on the CPU elsewhere.
-OpenVINO is gone. See docs/API.md section 15. Built and checked on the Mac
-(detections match LM3's on 21 sheets; 709 tests pass). Please check on Linux:
-
-1. `VVL_HOME=<scratch> uv run vvl detector --download` (the ONNX format), then
-   `VVL_TEST_DETECTOR_HOME=<scratch> uv run pytest tests/test_label_detector.py`.
-2. The full test suite, and fix the two Linux-only tests above for macOS.
-3. A first start of an AppImage built from this commit with an empty `VVL_HOME`:
-   the detector downloads by itself and the demo run gets a label collage.
+The Linux tasks, including the 0.2.0 label detector checks, are in
+`docs/release/LINUX_HANDOFF.md`.
