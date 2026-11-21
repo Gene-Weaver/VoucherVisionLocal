@@ -23,6 +23,8 @@ This file only records provenance.
 
 Local edits to copied files: `vvl/vendor_vv/prompt_catalog.py` opens prompt
 files as UTF-8 explicitly (Windows default encodings broke non-ASCII prompts),
+`vvl/vendor_vv/OCR_resize_for_VLMs.py`'s demo `main()` takes image paths from the
+command line instead of hard-coded local paths,
 and `textcollage/CollageEngine.py` takes its boxes from `textcollage/detector.py`
 (LeafMachine3's archival detector) instead of TextCollage's bundled OpenVINO
 YOLOv12n model, which VVL no longer carries.

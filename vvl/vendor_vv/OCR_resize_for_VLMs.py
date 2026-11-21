@@ -66,15 +66,9 @@ def save_resized_image(input_path, resized_image):
     print(f"Resized image saved as: {output_path}")
 
 def main():
-    # Paths to the images you want to test
-    image_paths = [
-        'C:/Users/willwe/Desktop/Cryptocarya_botelhensis_4603317652_label.jpg',
-        'C:/Users/willwe/Desktop/Acaena_elongata_1320978699_label.jpg',
-        'C:/Users/willwe/Desktop/spain_label.jpg',
-        'C:/Users/willwe/Desktop/stewart.jpg',
-        'C:/Users/willwe/Desktop/MICH_16205594_Poaceae_Jouvea_pilosa.jpg',
-        'C:/Users/willwe/Desktop/MICH_16205594_Poaceae_Jouvea_pilosa_2.jpg',
-    ]
+    # Paths to the images you want to test (from the command line)
+    import sys
+    image_paths = sys.argv[1:]
     
     # Loop through the images, resize them, and save the output
     for image_path in image_paths:

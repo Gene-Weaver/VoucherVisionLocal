@@ -5,9 +5,9 @@ Everything that does not need macOS was built and tested on Linux first. Read
 `docs/RELEASING.md` before starting: it describes how the installer, the
 first-launch Python setup and the updater work.
 
-## Rules (from the owner, Will)
+## Rules (from the owner)
 
-- `PRIVATE.yaml` holds Will's real API keys. Never open, read, print, grep or
+- `PRIVATE.yaml` holds the owner's real API keys. Never open, read, print, grep or
   otherwise view it. Avoid repo-wide `grep -r` / `cat *` that could print it.
 - `.env.signing` (here and in `~/Dropbox/VoucherVisionGO-Editor`) holds signing
   secrets. Never print it, paste it, or commit it. Copy values from the Editor's
@@ -16,7 +16,7 @@ first-launch Python setup and the updater work.
   checking with `grep -c '^export APPLE_' ` that it has the APPLE_* names).
 - Commits go directly on `main`. Never add a `Co-Authored-By` or any Claude
   attribution line to commit messages. American English everywhere.
-- Never download a local AI model without asking Will first (they are tens of GB).
+- Never download a local AI model without asking the owner first (they are tens of GB).
 - Mac test runs that start the app must use scratch data: set `VVL_HOME` and
   `VVL_USER_DATA_DIR` to scratch folders, unless you are testing the real
   first-run experience in a fresh macOS user account.
@@ -66,9 +66,9 @@ first-launch Python setup and the updater work.
    that the pinned llama.cpp Metal engine installs and passes its self-test.
    This checks that the engine and Python, which the app downloads itself, are
    not blocked by quarantine or by the hardened runtime. Do not download a
-   model without asking Will.
-6. **First release.** With Will's go-ahead: `./deploy.sh` (VERSION is `0.1.0`).
-   Then on Linux, Will (or the Linux agent) can check that the AppImage from
+   model without asking the owner.
+6. **First release.** With the owner's go-ahead: `./deploy.sh` (VERSION is `0.1.0`).
+   Then on Linux, the owner (or the Linux agent) can check that the AppImage from
    the release starts.
 7. **Update test on the Mac.** Install 0.1.0 from the release. Bump `VERSION`
    to `0.1.1` (any harmless change), commit, push, `./deploy.sh`. Start 0.1.0:
@@ -78,7 +78,7 @@ first-launch Python setup and the updater work.
    confirm the updated app is still arm64 (`file` on the main binary, or
    Activity Monitor's Kind column).
 8. **Report back** what you changed (commit on `main`, no attribution
-   trailer, push) and anything that still needs Will.
+   trailer, push) and anything that still needs the owner.
 
 ## Known risks to check
 
@@ -88,7 +88,7 @@ first-launch Python setup and the updater work.
   processes (uv, Python, llama-server) and listens on 127.0.0.1; none of that
   needs extra entitlements outside the App Sandbox, but confirm in step 5.
 - The app icon (`desktop/build-resources/icon.png`) is a placeholder: the
-  Editor's VoucherVision icon upscaled to 1024 px. Will may want a VVL icon.
+  Editor's VoucherVision icon upscaled to 1024 px. the owner may want a VVL icon.
 - The VoucherVisionGO-Editor has the `latest-mac.yml` bug described above
-  (its releases list only the x64 zip). Report it to Will; do not fix the
+  (its releases list only the x64 zip). Report it to the owner; do not fix the
   Editor unless he asks.
