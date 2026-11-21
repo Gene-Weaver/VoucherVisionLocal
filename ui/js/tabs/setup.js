@@ -6,7 +6,8 @@
 //           (saved as settings.setup.usage)
 //   Step 2  A checklist of only the steps that choice needs, each with one action.
 //
-// Everything here reuses the routes and helpers the other tabs use; nothing is
+// Everything here reuses the routes and helpers the other tabs use. Apart from
+// the label detector, which downloads by itself at first start, nothing is
 // installed or downloaded without a click.
 
 import { api, plainError, toast } from '../api.js';
@@ -40,6 +41,7 @@ const CHOICES = [
 const STATUS_LABEL = { done: 'Done', todo: 'To do', working: 'Working', problem: 'Needs attention' };
 const ENGINE_KIND = 'engine_install';
 const DOWNLOAD_KIND = 'model_download';
+const DETECTOR_KIND = 'detector_download';
 const LOW_DISK_BYTES = 20e9;
 
 /** How well local models will run, in plain words. {status, text} */
@@ -89,12 +91,14 @@ export async function mount(panel) {
         system: null,         // GET /v1/system
         engine: null,         // GET /v1/engine
         families: null,       // GET /v1/models -> local.families
+        detector: null,       // GET /v1/detector
     };
     const failed = {};        // source -> error, when its last load failed
     const ui = {
         keyBusy: false, keyOpen: false, keyProblem: null,
         engineBusy: false, engineProblem: null,
         modelBusy: false, modelProblem: null,
+        detectorBusy: false, detectorProblem: null,
         folderOpen: false, choosing: null,
     };
     let update = { status: 'unavailable' };
@@ -120,6 +124,7 @@ export async function mount(panel) {
         providers: () => loadSource('providers', async () => ((await api.get('/v1/providers', { timeoutMs: 15000 })).providers || [])),
         system: (refresh = false) => loadSource('system', () => api.get('/v1/system', { query: refresh ? { refresh: '1' } : undefined, timeoutMs: 120000 })),
         engine: () => loadSource('engine', () => api.get('/v1/engine', { timeoutMs: 30000 })),
+        detector: () => loadSource('detector', () => api.get('/v1/detector', { timeoutMs: 15000 })),
         models: () => loadSource('families', async () => {
             const models = await api.get('/v1/models', { timeoutMs: 60000 });
             return (models && models.local && models.local.families) || [];
@@ -128,7 +133,7 @@ export async function mount(panel) {
 
     async function loadAll() {
         await loaders.settings();
-        const work = [loaders.providers(), loaders.system(), refreshJobs()];
+        const work = [loaders.providers(), loaders.system(), loaders.detector(), refreshJobs()];
         if (wantsLocal()) work.push(loaders.engine(), loaders.models());
         await Promise.all(work);
     }
@@ -154,6 +159,7 @@ export async function mount(panel) {
     let folderMounted = false;
     const engineProgress = progressView('Engine install progress');
     const modelProgress = progressView('Model download progress');
+    const detectorProgress = progressView('Label detector download progress');
 
     // ------------------------------------------------------------ actions
     async function choose(usage) {
@@ -240,6 +246,22 @@ export async function mount(panel) {
         }
     }
 
+    async function installDetector() {
+        ui.detectorBusy = true;
+        ui.detectorProblem = null;
+        render();
+        try {
+            const res = await api.post('/v1/detector/install', {}, { timeoutMs: 60000 });
+            if (res && res.job) trackJob(res.job);
+        } catch (err) {
+            ui.detectorProblem = plainError(err);
+        } finally {
+            ui.detectorBusy = false;
+            await loaders.detector();
+            render();
+        }
+    }
+
     async function downloadModel(build) {
         ui.modelBusy = true;
         ui.modelProblem = null;
@@ -287,6 +309,37 @@ export async function mount(panel) {
             text: info.python ? `Python ${info.python} is working.` : 'Python is working.',
             tip: info.packaged ? 'Installed and kept up to date by the app.' : 'The project environment, managed by uv.',
         };
+    }
+
+    function detectorItem() {
+        const title = 'Label detector';
+        if (!data.detector) return loadingItem('detector', title, 'detector', loaders.detector);
+        const d = data.detector;
+        const job = activeJob(DETECTOR_KIND);
+        const size = fmtBytes(d.size_bytes);
+        const tip = 'Finds the labels on each sheet, so only they are sent for OCR (the LeafMachine3 archival detector). '
+            + `It runs on this computer with ${d.runtime}.`;
+        if (job || ui.detectorBusy || d.state === 'downloading') {
+            if (job) detectorProgress.update(job);
+            return { id: 'detector', status: 'working', title, text: `Downloading the label detector (${size})…`,
+                tip: `${tip} Until it is ready, whole images are used instead of label collages.`, extra: job ? detectorProgress.node : null, required: true };
+        }
+        if (ui.detectorProblem) {
+            return { id: 'detector', status: 'problem', title, text: ui.detectorProblem, action: button('Try again', installDetector), required: true };
+        }
+        if (d.state === 'installed' && d.load_error) {
+            return { id: 'detector', status: 'problem', title, text: 'The label detector is downloaded but could not be loaded.', tip: d.load_error, required: true };
+        }
+        if (d.state === 'installed') {
+            return { id: 'detector', status: 'done', title, text: `Ready (${d.runtime}).`, tip };
+        }
+        if (d.state === 'error') {
+            const e = jobError(d.job);
+            return { id: 'detector', status: 'problem', title, text: `The download stopped: ${e.message}`, tip: e.hint || tip,
+                action: button('Try again', installDetector), required: true };
+        }
+        return { id: 'detector', status: 'todo', title, text: `Download the label detector (${size}). Until then, whole images are used instead of label collages.`,
+            tip, action: button('Download', installDetector), required: true };
     }
 
     function keyItem() {
@@ -488,7 +541,7 @@ export async function mount(panel) {
     }
 
     function items() {
-        const list = [appItem(), pythonItem()];
+        const list = [appItem(), pythonItem(), detectorItem()];
         if (wantsCloud()) list.push(keyItem(), pickItem());
         if (wantsLocal()) list.push(systemItem(), folderItem(), engineItem(), modelItem());
         return list;
@@ -597,7 +650,7 @@ export async function mount(panel) {
     // ------------------------------------------------------------ events
     let lastJobsKey = '';
     on('jobs-changed', (jobs) => {
-        const key = (jobs || []).filter((j) => j.kind === ENGINE_KIND || j.kind === DOWNLOAD_KIND).map((j) => `${j.id}:${j.state}`).join('|');
+        const key = (jobs || []).filter((j) => [ENGINE_KIND, DOWNLOAD_KIND, DETECTOR_KIND].includes(j.kind)).map((j) => `${j.id}:${j.state}`).join('|');
         if (key !== lastJobsKey) {
             lastJobsKey = key;
             render();
@@ -605,10 +658,17 @@ export async function mount(panel) {
         }
         const e = activeJob(ENGINE_KIND);
         const d = activeJob(DOWNLOAD_KIND);
+        const det = activeJob(DETECTOR_KIND);
         if (e) engineProgress.update(e);
         if (d) modelProgress.update(d);
+        if (det) detectorProgress.update(det);
     });
     on('job-finished', async (job) => {
+        if (job && job.kind === DETECTOR_KIND) {
+            await loaders.detector();
+            render();
+            return;
+        }
         if (!wantsLocal()) return;
         if (job.kind === ENGINE_KIND) await loaders.engine();
         await loaders.models();

@@ -30,7 +30,7 @@ export function getJob(id) {
     return id ? jobs.find((j) => j.id === id) || null : null;
 }
 
-/** The running job of one kind ('model_download' | 'engine_install'), else a queued one, else null. */
+/** The running job of one kind ('model_download' | 'engine_install' | 'detector_download'), else a queued one, else null. */
 export function activeJob(kind) {
     const mine = jobs.filter((j) => j.kind === kind && isActive(j));
     return mine.find((j) => j.state !== 'queued') || mine[0] || null;
@@ -172,7 +172,7 @@ export function mountIndicator(host) {
         el('span', { class: 'spinner spinner-small', 'aria-hidden': 'true' }), text);
     let current = null;
     button.addEventListener('click', () => {
-        if (current) gotoTab(current.kind === 'engine_install' ? 'engine' : 'models');
+        if (current) gotoTab({ engine_install: 'engine', detector_download: 'setup' }[current.kind] || 'models');
     });
     replace(host, button);
     const render = () => {
@@ -181,11 +181,12 @@ export function mountIndicator(host) {
         button.hidden = !current;
         if (!current) return;
         const install = current.kind === 'engine_install';
-        const what = install ? 'Installing the engine' : `Downloading ${current.label || 'a model'}`;
+        const detector = current.kind === 'detector_download';
+        const what = install ? 'Installing the engine' : (detector ? 'Downloading the label detector' : `Downloading ${current.label || 'a model'}`);
         const state = current.state === 'verifying' ? 'verifying' : (current.state === 'queued' ? 'waiting' : `${jobPercent(current)}%`);
         const waiting = active.filter((j) => j.kind === 'model_download' && j.state === 'queued' && j !== current).length;
         text.textContent = `${what} · ${state}${waiting ? ` · ${waiting} more queued` : ''}`;
-        button.title = install ? 'Show the engine install on the Engine tab' : 'Show the download on the Models tab';
+        button.title = install ? 'Show the engine install on the Engine tab' : (detector ? 'Show the label detector on the Setup page' : 'Show the download on the Models tab');
     };
     on('jobs-changed', render);
     render();

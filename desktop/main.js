@@ -252,7 +252,7 @@ async function confirmQuit({ always = false } = {}) {
   if (!always && (quitConfirmed || screenshotDir)) return true;
   const jobs = await runningJobs();
   if (!jobs.length) return true;
-  const download = jobs.find((j) => j.kind === 'model_download');
+  const download = jobs.find((j) => j.kind === 'model_download' || j.kind === 'detector_download');
   const job = download || jobs[0];
   const percent = job.bytes_total > 0 ? Math.floor((job.bytes_done / job.bytes_total) * 100) : 0;
   const name = String(job.label || (download ? 'A model' : 'The engine'));
@@ -387,7 +387,7 @@ function startUpdaterOnce() {
 async function confirmRestartForUpdate(batchRunning) {
   const jobs = await runningJobs();
   if (!batchRunning && !jobs.length) return true;
-  const download = jobs.find((j) => j.kind === 'model_download');
+  const download = jobs.find((j) => j.kind === 'model_download' || j.kind === 'detector_download');
   let message;
   let detail;
   if (batchRunning) {
