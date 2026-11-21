@@ -300,9 +300,12 @@ def test_shutdown_route_stops_engine(local, auth):
         os.kill(pid, 0)
 
 
-def test_doctor_reports_engine_and_models(local, vvl_env):
+def test_doctor_reports_engine_and_models(local, vvl_env, monkeypatch):
     from vvl.doctor import run_checks
 
+    # The workstation report (Linux, CUDA), so the fake linux-x64 build fits on any test machine.
+    report = load_report()
+    monkeypatch.setattr("vvl.api.system.get_system_report", lambda refresh=False: report)
     checks = {c["name"]: c for c in run_checks()}
     assert checks["engine"]["status"] == "ok"
     assert "linux-x64-cuda12" in checks["engine"]["detail"]

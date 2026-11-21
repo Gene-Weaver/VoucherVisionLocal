@@ -484,7 +484,10 @@ def test_uninstall(release):
 
 
 def test_install_route_and_disk_check(make_app, release, auth, monkeypatch):
-    app = make_app(VVL_ENGINE_LOCK_PATH=str(release["rel"].lock_path))
+    # The workstation report (Linux), so linux-x64-cpu is a build this "computer" can install.
+    report = load_report()
+    app = make_app(VVL_ENGINE_LOCK_PATH=str(release["rel"].lock_path),
+                   VVL_SYSTEM_REPORT=lambda refresh=False: report)
     client = app.test_client()
     monkeypatch.setattr("vvl.downloads.free_bytes", lambda path: 1000)
     response = client.post("/v1/engine/install", headers=auth, json={})
