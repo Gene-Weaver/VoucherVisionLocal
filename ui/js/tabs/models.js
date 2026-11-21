@@ -3,7 +3,7 @@
 
 import { api, inlineError, plainError, toast, toastError } from '../api.js';
 import {
-    el, icon, replace, stateBox, badge, externalLink, fmtBytes, fmtBytesExact, defList, actionDialog,
+    el, icon, infoTip, replace, stateBox, badge, externalLink, fmtBytes, defList, actionDialog,
 } from '../dom.js';
 import { emit, on, gotoTab } from '../state.js';
 import { activeJob, getJob, isActive, jobError, jobFor, progressView, refreshJobs, trackJob } from '../jobs.js';
@@ -15,15 +15,14 @@ const ROLE_LABEL = { ocr: 'OCR', parse: 'Parsing' };
 const DOWNLOAD_KIND = 'model_download';
 
 const SUBTABS = [
-    { id: 'local', icon: 'shield', title: 'Local models', subtitle: 'Images stay on this computer. Nothing is uploaded.' },
-    { id: 'remote', icon: 'cloud', title: 'OpenRouter models', subtitle: 'Images are sent to the provider, using your own key.' },
+    { id: 'local', icon: 'shield', title: 'Local', subtitle: 'Runs on this computer' },
+    { id: 'remote', icon: 'cloud', title: 'OpenRouter', subtitle: 'Cloud models · uses your API key' },
 ];
 
 function plannedCard(family) {
     return el('div', { class: 'card family-card is-planned' },
         el('div', { class: 'card-header' }, el('h3', null, family.label), badge('Coming soon', 'neutral')),
-        el('div', { class: 'family-meta' }, [family.developer, family.license].filter(Boolean).join(' · ')),
-        family.summary ? el('p', { class: 'family-summary' }, family.summary) : null);
+        el('div', { class: 'family-meta' }, [family.developer, family.license].filter(Boolean).join(' · ')));
 }
 
 /** Where a build's files are kept: <models folder>/models/<org>/<repo>. */
@@ -70,43 +69,37 @@ export async function mount(panel) {
     function renderEngineNotice() {
         replace(engineNotice, engineInstalled === false
             ? el('div', { class: 'notice notice-warn' }, icon('alert', { size: 18 }),
-                el('span', { class: 'notice-text' }, 'The engine that runs local models is not installed yet. Models can be downloaded now and used once it is installed.'),
-                el('button', { type: 'button', class: 'button-secondary button-small', onclick: () => gotoTab('engine', 'engine') }, 'Go to the Engine tab'))
+                el('span', { class: 'notice-text' }, 'Local engine not installed.'),
+                el('button', { type: 'button', class: 'button-secondary button-small', onclick: () => gotoTab('engine', 'engine') }, 'Install engine'))
             : null);
     }
 
     async function confirmDownload(build, { resume = false } = {}) {
         const fit = build.fit || {};
         const ahead = activeJob(DOWNLOAD_KIND);
-        const folder = buildFolder(modelsDir, build);
         const space = el('span', null, 'Checking…');
         const have = Number(build.installed_bytes) || 0;
+        const remaining = Math.max(0, build.total_size_bytes - have);
         const body = [
             defList([
-                ['Model', build.label],
-                ['Download size', fmtBytesExact(build.total_size_bytes)],
-                resume && have > 0 ? ['Already downloaded', `${fmtBytes(have)}; ${fmtBytes(Math.max(0, build.total_size_bytes - have))} left`] : ['', undefined],
-                ['Free disk space', space],
-                ['Saved to', folder || 'The models folder'],
-                ['Fit on this computer', el('span', null, badge(fit.label || 'Not checked', FIT_KIND[fit.verdict] || 'neutral'), fit.detail ? el('div', { class: 'fit-detail' }, fit.detail) : null)],
+                ['Size', resume && have > 0 ? `${fmtBytes(remaining)} left (${fmtBytes(have)} downloaded)` : fmtBytes(build.total_size_bytes)],
+                ['Free space', space],
+                ['Fit', el('span', null, badge(fit.label || 'Unknown', FIT_KIND[fit.verdict] || 'neutral'), infoTip(fit.detail))],
             ], 'kv kv-dialog'),
-            fit.verdict === 'too_large' ? el('div', { class: 'notice notice-warn' }, icon('alert', { size: 18 }), el('span', null, 'This model is too large to run on this computer. You can still download it.')) : null,
-            ahead ? el('p', { class: 'help-text' }, `${ahead.label || 'Another model'} is downloading now. This model will start when the downloads ahead of it finish.`) : null,
-            el('p', { class: 'help-text' }, 'The download can be canceled and resumed later.'),
+            fit.verdict === 'too_large' ? el('div', { class: 'notice notice-warn' }, icon('alert', { size: 18 }), el('span', null, 'Too large for your GPU.')) : null,
+            ahead ? el('p', { class: 'help-text' }, `Queued behind ${ahead.label || 'current download'}.`) : null,
         ];
         // Free space is read fresh, so the number shown is current.
         api.get('/v1/system', { query: { refresh: '1' }, timeoutMs: 60000 }).then((report) => {
             const disk = (report && report.disk) || {};
-            space.textContent = Number.isFinite(disk.free_bytes)
-                ? `${fmtBytes(disk.free_bytes)} free at ${disk.checked_path || disk.models_dir || 'the models folder'}`
-                : 'Unknown';
+            space.textContent = Number.isFinite(disk.free_bytes) ? `${fmtBytes(disk.free_bytes)} free` : 'Unknown';
         }).catch(() => {
             space.textContent = 'Unknown';
         });
         const started = await actionDialog({
-            title: resume ? `Resume downloading ${build.label}?` : `Download ${build.label}?`,
+            title: resume ? `Resume ${build.label}?` : `Download ${build.label}?`,
             body,
-            confirmLabel: ahead ? 'Add to the download queue' : (resume ? 'Resume download' : `Download ${fmtBytes(build.total_size_bytes)}`),
+            confirmLabel: ahead ? 'Add to queue' : (resume ? 'Resume' : `Download (${fmtBytes(build.total_size_bytes)})`),
             describe: plainError,
             action: async () => {
                 const res = await api.post(`/v1/models/local/${encodeURIComponent(build.id)}/download`, { confirm_size_bytes: build.total_size_bytes }, { timeoutMs: 60000 });
@@ -137,21 +130,17 @@ export async function mount(panel) {
 
     async function removeBuild(build, { partial = false } = {}) {
         const removed = await actionDialog({
-            title: partial ? `Delete the partial download of ${build.label}?` : `Remove ${build.label}?`,
-            body: [
-                partial
-                    ? `The ${fmtBytes(build.installed_bytes)} downloaded so far is deleted. Downloading again starts from the beginning.`
-                    : `This deletes the model files from this computer and frees about ${fmtBytes(build.installed_bytes || build.total_size_bytes)}. You can download the model again later.`,
-            ],
+            title: partial ? `Delete partial download?` : `Remove ${build.label}?`,
+            body: [`Frees ${fmtBytes(build.installed_bytes || build.total_size_bytes)}.`],
             confirmLabel: partial ? 'Delete' : 'Remove',
             danger: true,
             describe: (err) => (err && err.status === 409
-                ? `${plainError(err)} You can stop it on the Engine tab.`
+                ? `${plainError(err)} Stop the engine first.`
                 : plainError(err)),
             action: () => api.del(`/v1/models/local/${encodeURIComponent(build.id)}`, { timeoutMs: 120000 }),
         });
         if (removed) {
-            toast(`${build.label} removed${Number.isFinite(removed.freed_bytes) ? `; ${fmtBytes(removed.freed_bytes)} freed` : ''}.`, 'success');
+            toast(`${build.label} removed.`, 'success');
             emit('models-changed');
             load({ quiet: true });
         }
@@ -190,26 +179,26 @@ export async function mount(panel) {
                 row.view = progressView(`Download progress for ${build.label}`);
                 detail = row.view.node;
             } else if (view.state === 'installed') {
-                status = [badge('Installed', 'good'), el('div', { class: 'cell-note' }, `${fmtBytes(build.installed_bytes || build.total_size_bytes)} on disk`)];
+                status = badge('Installed', 'good');
                 actions = [smallButton('Remove', 'trash', () => removeBuild(build), { danger: true })];
             } else if (view.state === 'partial') {
-                status = [badge('Paused', 'warn'), el('div', { class: 'cell-note' }, `${fmtBytes(build.installed_bytes)} of ${fmtBytes(build.total_size_bytes)} downloaded`)];
+                status = [badge('Paused', 'warn'), el('div', { class: 'cell-note' }, `${fmtBytes(build.installed_bytes)} / ${fmtBytes(build.total_size_bytes)}`)];
                 actions = [
-                    smallButton('Resume download', 'download', () => confirmDownload(build, { resume: true }), { primary: true }),
+                    smallButton('Resume', 'download', () => confirmDownload(build, { resume: true }), { primary: true }),
                     smallButton('Delete', 'trash', () => removeBuild(build, { partial: true }), { danger: true }),
                 ];
             } else if (view.state === 'error') {
                 const problem = jobError(view.job);
-                status = badge('Download failed', 'bad');
+                status = badge('Failed', 'bad');
                 actions = [
                     smallButton('Retry', 'refresh', () => confirmDownload(build, { resume: Number(build.installed_bytes) > 0 })),
                     Number(build.installed_bytes) > 0 ? smallButton('Delete', 'trash', () => removeBuild(build, { partial: true }), { danger: true }) : null,
                 ];
                 detail = el('div', { class: 'job-problem', role: 'alert' }, icon('alert', { size: 18 }),
-                    el('div', null, el('div', { class: 'job-problem-title' }, view.job ? problem.message : 'The last download did not finish.'),
+                    el('div', null, el('div', { class: 'job-problem-title' }, view.job ? problem.message : 'Download failed.'),
                         problem.hint && view.job ? el('div', { class: 'job-problem-hint' }, problem.hint) : null));
             } else {
-                status = badge('Not installed', 'neutral');
+                status = badge('Available', 'neutral');
                 actions = [smallButton('Download', 'download', () => confirmDownload(build))];
             }
             replace(row.status, status);
@@ -228,10 +217,10 @@ export async function mount(panel) {
         const progressRow = el('tr', { class: 'build-detail-row', hidden: true }, progressCell);
         const main = el('tr', { class: build.recommended ? 'is-recommended' : null },
             el('th', { scope: 'row', class: 'build-name' }, el('strong', null, build.label),
-                build.recommended ? el('div', { class: 'recommended-mark' }, icon('star', { size: 13 }), 'Recommended for this computer') : null),
+                build.recommended ? el('div', { class: 'recommended-mark' }, icon('star', { size: 13 }), 'Recommended') : null),
             el('td', null, fmtBytes(build.total_size_bytes)),
             el('td', null, build.quant || '—'),
-            el('td', null, badge(fit.label || 'Not checked', FIT_KIND[fit.verdict] || 'neutral'), fit.detail ? el('div', { class: 'fit-detail' }, fit.detail) : null),
+            el('td', null, badge(fit.label || 'Unknown', FIT_KIND[fit.verdict] || 'neutral'), infoTip(fit.detail)),
             status, action);
         const row = { build, key: null, status, action, progressRow, progressCell, view: null };
         rows.set(build.id, row);
@@ -240,16 +229,15 @@ export async function mount(panel) {
     }
 
     function familyCard(family) {
-        const roles = (family.roles || []).map((r) => ROLE_LABEL[r] || r).join(' and ');
+        const roles = (family.roles || []).map((r) => ROLE_LABEL[r] || r).join(' · ');
         return el('div', { class: 'card family-card' },
-            el('div', { class: 'card-header' }, el('h3', null, family.label), roles ? badge(roles, 'good') : null,
+            el('div', { class: 'card-header' }, el('h3', null, family.label), infoTip(family.summary, 'start'), roles ? badge(roles, 'good') : null,
                 el('span', { class: 'family-meta' }, [family.developer, family.license].filter(Boolean).join(' · ')),
                 el('span', { class: 'spacer' }),
-                family.homepage ? externalLink('Model page', family.homepage) : null),
-            family.summary ? el('p', { class: 'family-summary' }, family.summary) : null,
+                family.homepage ? externalLink('Details', family.homepage) : null),
             (family.builds || []).length
                 ? el('div', { class: 'table-wrap' }, el('table', { class: 'data build-table' },
-                    el('thead', null, el('tr', null, ['Model', 'Download size', 'Quantization', 'Fit on this computer', 'Status', ''].map((t) => el('th', { scope: 'col' }, t || el('span', { class: 'visually-hidden' }, 'Actions'))))),
+                    el('thead', null, el('tr', null, ['Model', 'Size', 'Format', 'Fit', 'Status', ''].map((t) => el('th', { scope: 'col' }, t || el('span', { class: 'visually-hidden' }, 'Actions'))))),
                     el('tbody', null, family.builds.map(buildRows))))
                 : el('p', { class: 'help-text' }, 'No builds listed.'));
     }
@@ -332,8 +320,8 @@ export async function mount(panel) {
     // One container in the existing style; its header is the two tabs.
     // The models folder and the space the downloaded models use, above the model list.
     const folderHost = el('div');
-    const folderSection = el('section', { class: 'mf-section', 'aria-label': 'Models folder' },
-        el('h3', { class: 'mf-section-title' }, 'Models folder'), folderHost);
+    const folderSection = el('section', { class: 'mf-section', 'aria-label': 'Storage' },
+        el('h3', { class: 'mf-section-title' }, 'Storage'), folderHost);
     mountModelsFolder(folderHost);
     const bodies = { local: el('div', { class: 'privacy-body', role: 'tabpanel', id: 'models-panel-local' }, folderSection, localBody),
         remote: el('div', { class: 'privacy-body', role: 'tabpanel', id: 'models-panel-remote', hidden: true }, remoteBody) };

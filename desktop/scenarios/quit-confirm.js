@@ -23,7 +23,7 @@ module.exports = async function quitConfirm(t) {
     if (!(await confirmQuit()) || asked.length) problems.push('quitting with nothing running should not ask');
 
     await gotoTab('models');
-    await js(`(${rowButton('Download')} || ${rowButton('Resume download')}).click(); true`);
+    await js(`(${rowButton('Download')} || ${rowButton('Resume')}).click(); true`);
     await waitFor(`Boolean(document.querySelector('.modal'))`, 'the download dialog');
     await js(`document.querySelector('.modal .modal-actions .button').click(); true`);
     await waitFor(`${row}.nextElementSibling.textContent.includes('left')`, 'download progress', 60000);

@@ -15,7 +15,7 @@ export async function mount(panel) {
     const detail = el('div', { class: 'prompt-detail' });
     const importErrors = el('div', { class: 'import-errors' });
     const importInput = el('input', { type: 'file', accept: '.yaml,.yml', class: 'visually-hidden', id: 'promptImportInput', tabindex: '-1' });
-    const importButton = el('button', { type: 'button', class: 'button-secondary', onclick: () => importInput.click() }, icon('plus', { size: 14 }), 'Import a prompt (.yaml)');
+    const importButton = el('button', { type: 'button', class: 'button-secondary', onclick: () => importInput.click() }, icon('plus', { size: 14 }), 'Import YAML');
 
     function key(p) {
         return `${p.source}/${p.name}`;
@@ -24,10 +24,10 @@ export async function mount(panel) {
     function renderList() {
         clear(list);
         if (!prompts.length) {
-            list.appendChild(stateBox('empty', 'No prompts yet', 'Import a YAML prompt to get started.', { compact: true }));
+            list.appendChild(stateBox('empty', 'No prompts yet', null, { compact: true }));
             return;
         }
-        for (const [source, title] of [['user', 'Your prompts'], ['builtin', 'Built-in prompts']]) {
+        for (const [source, title] of [['user', 'Custom'], ['builtin', 'Built-in']]) {
             const group = prompts.filter((p) => p.source === source);
             if (!group.length) continue;
             list.appendChild(el('div', { class: 'prompt-list-group' }, title));
@@ -39,10 +39,7 @@ export async function mount(panel) {
                 },
                 el('span', { class: 'prompt-item-name' }, p.prompt_name || p.name, p.valid === false ? badge('Invalid', 'bad') : null),
                 el('span', { class: 'prompt-item-meta' },
-                    [p.name, p.prompt_version ? `version ${p.prompt_version}` : null, Number.isFinite(p.n_fields) ? `${p.n_fields} fields` : null].filter(Boolean).join(' · ')),
-                p.prompt_author || p.prompt_author_institution
-                    ? el('span', { class: 'prompt-item-meta' }, [p.prompt_author, p.prompt_author_institution].filter(Boolean).join(', ')) : null,
-                p.prompt_description ? el('span', { class: 'prompt-item-meta' }, p.prompt_description.length > 110 ? `${p.prompt_description.slice(0, 110)}…` : p.prompt_description) : null));
+                    [Number.isFinite(p.n_fields) ? `${p.n_fields} fields` : null, p.prompt_version ? `v${p.prompt_version}` : null].filter(Boolean).join(' · '))));
             }
         }
     }
@@ -69,28 +66,28 @@ export async function mount(panel) {
 
     function renderDetail(d) {
         const user = d.source === 'user';
+        const author = [d.prompt_author, d.prompt_author_institution].filter(Boolean).join(', ');
+        const metaRows = [
+            author ? ['Author', author] : null,
+            d.prompt_version ? ['Version', d.prompt_version] : null,
+            ['Fields', String((d.fields || []).length)],
+        ].filter(Boolean);
         replace(detail,
             el('div', { class: 'card' },
                 el('div', { class: 'prompt-detail-header' },
                     el('div', null, el('h2', null, d.prompt_name || d.name), el('div', { class: 'prompt-file' }, d.name)),
-                    badge(user ? 'Yours' : 'Built-in', user ? 'info' : 'good'),
+                    badge(user ? 'Custom' : 'Built-in', user ? 'info' : 'good'),
                     d.valid === false ? badge('Invalid', 'bad') : null,
                     el('span', { class: 'spacer' }),
-                    el('button', { type: 'button', class: 'button', disabled: d.valid === false, onclick: () => usePrompt(d) }, 'Use this prompt'),
+                    el('button', { type: 'button', class: 'button', disabled: d.valid === false, onclick: () => usePrompt(d) }, 'Use prompt'),
                     user ? el('button', { type: 'button', class: 'button-secondary button-danger', onclick: () => removePrompt(d) }, icon('trash', { size: 14 }), 'Delete') : null),
-                d.valid === false ? el('div', { class: 'notice notice-warn', role: 'alert' }, icon('alert', { size: 18 }), el('span', null, d.error || 'This prompt is not valid.')) : null,
-                defList([
-                    ['Author', d.prompt_author || null],
-                    ['Institution', d.prompt_author_institution || null],
-                    ['Version', d.prompt_version || null],
-                    ['Written for', d.llm || null],
-                    ['Fields', String((d.fields || []).length)],
-                ]),
+                d.valid === false ? el('div', { class: 'notice notice-warn', role: 'alert' }, icon('alert', { size: 18 }), el('span', null, d.error || 'Invalid prompt.')) : null,
+                defList(metaRows),
                 d.prompt_description ? el('p', { class: 'prompt-text family-summary' }, d.prompt_description) : null),
             d.instructions ? el('div', { class: 'card' }, el('div', { class: 'card-header' }, el('h3', null, 'Instructions')), el('p', { class: 'prompt-text' }, d.instructions)) : null,
-            d.json_formatting_instructions ? el('div', { class: 'card' }, el('div', { class: 'card-header' }, el('h3', null, 'Formatting instructions')), el('p', { class: 'prompt-text' }, d.json_formatting_instructions)) : null,
-            el('div', { class: 'card' }, el('div', { class: 'card-header' }, el('h3', null, 'Fields and rules')), rulesTable(d)),
-            el('div', { class: 'card' }, el('details', { class: 'raw' }, el('summary', null, 'Raw YAML'), el('pre', { class: 'json-content' }, d.yaml_text || ''))));
+            d.json_formatting_instructions ? el('div', { class: 'card' }, el('div', { class: 'card-header' }, el('h3', null, 'Formatting')), el('p', { class: 'prompt-text' }, d.json_formatting_instructions)) : null,
+            el('div', { class: 'card' }, el('div', { class: 'card-header' }, el('h3', null, 'Fields')), rulesTable(d)),
+            el('div', { class: 'card' }, el('details', { class: 'raw' }, el('summary', null, 'YAML'), el('pre', { class: 'json-content' }, d.yaml_text || ''))));
     }
 
     async function select(source, name) {
@@ -108,16 +105,16 @@ export async function mount(panel) {
 
     function usePrompt(d) {
         emit('use-prompt', { source: d.source, name: d.name });
-        toast(`${d.name} is selected for processing.`, 'success');
+        toast(`Selected ${d.prompt_name || d.name}.`, 'success');
         gotoTab('vvl');
     }
 
     async function removePrompt(d) {
-        const yes = await confirmDialog({ title: `Delete ${d.name}?`, message: 'This removes the prompt file from your prompts folder.', confirmLabel: 'Delete', danger: true });
+        const yes = await confirmDialog({ title: `Delete ${d.name}?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true });
         if (!yes) return;
         try {
             await api.del(`/v1/prompts/user/${encodeURIComponent(d.name)}`);
-            toast(`${d.name} was deleted.`, 'success');
+            toast('Deleted.', 'success');
             current = null;
             emit('prompts-changed');
             await load();

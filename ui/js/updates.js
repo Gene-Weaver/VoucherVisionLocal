@@ -115,30 +115,30 @@ export function describeUpdate(state = current) {
     const v = state.version;
     switch (state.status) {
         case 'none':
-            return { kind: 'good', text: 'Up to date', tip: 'The app checks for a new version when it starts.' };
+            return { kind: 'good', text: 'Up to date', tip: 'Checks for updates on launch.' };
         case 'checking':
-            return { kind: 'working', text: 'Checking for updates…', tip: null };
+            return { kind: 'working', text: 'Checking…', tip: null };
         case 'downloading':
             return {
                 kind: 'working',
-                text: `Downloading ${v || 'an update'}${state.percent === null ? '' : ` (${state.percent}%)`}`,
-                tip: 'You can keep working. The update is installed when the app restarts.',
+                text: `Downloading ${v || 'update'}${state.percent === null ? '' : ` (${state.percent}%)`}`,
+                tip: 'Installs on next restart.',
             };
         case 'ready':
-            return { kind: 'ready', text: `${v || 'An update'} is ready`, tip: 'Restarting takes a few seconds. Downloads continue where they stopped.' };
+            return { kind: 'ready', text: `${v || 'Update'} ready`, tip: 'Restart to install.' };
         case 'error':
-            return { kind: 'bad', text: `Could not check for updates${state.error ? `: ${state.error}` : ''}`, tip: 'The app tries again the next time it starts.' };
+            return { kind: 'bad', text: `Update check failed${state.error ? `: ${state.error}` : ''}`, tip: 'Retries on next launch.' };
         case 'disabled': {
             const packaged = Boolean(window.vvlDesktop && window.vvlDesktop.packaged);
             if (/develop/i.test(state.reason || '') || (!packaged && (!state.reason || /not started/i.test(state.reason)))) {
-                return { kind: 'info', text: 'Updates are off in development builds', tip: 'Update a source checkout with git pull.' };
+                return { kind: 'info', text: 'Off in development builds', tip: 'Update via git pull.' };
             }
-            if (/not started/i.test(state.reason || '')) return { kind: 'info', text: 'Updates are checked after the app starts', tip: null };
-            return { kind: 'info', text: `Updates are off${state.reason ? `: ${state.reason}` : ''}`, tip: null };
+            if (/not started/i.test(state.reason || '')) return { kind: 'info', text: 'Checks on launch', tip: null };
+            return { kind: 'info', text: `Updates off${state.reason ? `: ${state.reason}` : ''}`, tip: null };
         }
         default:
             return window.vvlDesktop
-                ? { kind: 'info', text: 'Updates are off in development builds', tip: 'This desktop app does not install updates by itself. Update a source checkout with git pull.' }
-                : { kind: 'info', text: 'Updates come with the desktop app', tip: 'In a web browser, update VoucherVisionLocal where it is installed.' };
+                ? { kind: 'info', text: 'Off in development builds', tip: 'Update via git pull.' }
+                : { kind: 'info', text: 'Desktop app updates only', tip: 'Update VoucherVisionLocal where it is installed.' };
     }
 }

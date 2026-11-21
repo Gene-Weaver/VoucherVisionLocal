@@ -30,7 +30,7 @@ module.exports = async function fakeFlows(t) {
   };
   const rowHas = (label, text, timeoutMs = 60000) => waitFor(`window.__t.rowText(${JSON.stringify(label)}).includes(${JSON.stringify(text)})`, `"${text}" in the ${label} row`, timeoutMs);
   const click = (label, text) => must(`window.__t.click(${JSON.stringify(label)}, ${JSON.stringify(text)})`, `click ${text} on ${label}`);
-  const freeSpaceShown = () => waitFor(`Boolean(window.__t.dialog()) && /free at/.test(window.__t.dialog().textContent)`, 'free disk space in the dialog', 60000);
+  const freeSpaceShown = () => waitFor(`Boolean(window.__t.dialog()) && /free/.test(window.__t.dialog().textContent)`, 'free disk space in the dialog', 60000);
   const dialogOpen = () => waitFor('Boolean(window.__t.dialog())', 'a dialog', 10000);
   const dialogGone = () => waitFor('!window.__t.dialog()', 'the dialog to close', 20000);
   const confirm = () => must('window.__t.confirm()', 'confirm the dialog');
@@ -45,7 +45,7 @@ module.exports = async function fakeFlows(t) {
   // ------------------------------------------------------------ downloads
   await setTheme('light');
   await gotoTab('models');
-  await must(`document.querySelector('#panel-models').textContent.includes('not installed yet')`, 'the engine-not-installed notice');
+  await must(`document.querySelector('#panel-models').textContent.includes('not installed')`, 'the engine-not-installed notice');
   await shoot('01-models-start');
 
   await click(MEDIUM, 'Download');
@@ -63,16 +63,16 @@ module.exports = async function fakeFlows(t) {
   // A second download waits in line, and can be taken out of the line.
   await click(SMALL, 'Download');
   await dialogOpen();
-  await must(`/Add to the download queue/.test(window.__t.dialog().textContent)`, 'the dialog offers to queue the download');
+  await must(`/Add to queue/.test(window.__t.dialog().textContent)`, 'the dialog offers to queue the download');
   await shoot('03a-queue-dialog');
   await confirm();
   await dialogGone();
   await rowHas(SMALL, 'Queued');
   await rowHas(SMALL, 'Next in line');
-  await waitFor(`/1 more queued/.test(document.querySelector('.job-indicator').textContent)`, 'the header indicator to count the queued download', 10000);
+  await waitFor(`/1 queued/.test(document.querySelector('.job-indicator').textContent)`, 'the header indicator to count the queued download', 10000);
   await shoot('03b-queued');
   await click(SMALL, 'Cancel');
-  await rowHas(SMALL, 'Not installed');
+  await rowHas(SMALL, 'Available');
 
   // Progress survives a tab switch and a page reload.
   await gotoTab('vvl');
@@ -91,14 +91,14 @@ module.exports = async function fakeFlows(t) {
   await click(MEDIUM, 'Cancel');
   await rowHas(MEDIUM, 'Paused');
   await shoot('06-paused');
-  await click(MEDIUM, 'Resume download');
+  await click(MEDIUM, 'Resume');
   await dialogOpen();
   await freeSpaceShown();
-  await must(`Boolean(window.__t.dialog()) && window.__t.dialog().textContent.includes('Already downloaded')`, 'the resume dialog says what is already downloaded');
+  await must(`Boolean(window.__t.dialog()) && window.__t.dialog().textContent.includes('downloaded')`, 'the resume dialog says what is already downloaded');
   await shoot('07-resume-dialog');
   await confirm();
   await dialogGone();
-  await rowHas(MEDIUM, 'on disk', 120000);
+  await rowHas(MEDIUM, 'Installed', 120000);
   await shoot('08-installed');
 
   // A file that fails its checksum.
@@ -106,7 +106,7 @@ module.exports = async function fakeFlows(t) {
   await dialogOpen();
   await confirm();
   await dialogGone();
-  await rowHas(BAD, 'Download failed', 120000);
+  await rowHas(BAD, 'Failed', 120000);
   await shoot('09-checksum-failure');
 
   // A model that does not fit on the disk.
@@ -124,7 +124,7 @@ module.exports = async function fakeFlows(t) {
   await dialogOpen();
   await confirm();
   await dialogGone();
-  await rowHas(SMALL, 'on disk', 120000);
+  await rowHas(SMALL, 'Installed', 120000);
 
   // ------------------------------------------------------------ engine install
   await gotoTab('engine');
@@ -138,11 +138,11 @@ module.exports = async function fakeFlows(t) {
   await rowHas(CUDA, 'left');
   await js(`document.getElementById('engineSection').scrollIntoView(); true`);
   await shoot('13-installing');
-  await rowHas(CUDA, 'cannot run on this computer', 120000);
-  await must(`Boolean(window.__t.button(${JSON.stringify(CUDA)}, 'Install ${VULKAN} instead'))`, 'the next build is offered');
+  await rowHas(CUDA, 'Build failed self-test', 120000);
+  await must(`Boolean(window.__t.button(${JSON.stringify(CUDA)}, 'Install ${VULKAN}'))`, 'the next build is offered');
   await js(`document.getElementById('engineSection').scrollIntoView(); true`);
   await shoot('14-self-test-failed');
-  await click(CUDA, `Install ${VULKAN} instead`);
+  await click(CUDA, `Install ${VULKAN}`);
   await dialogOpen();
   await confirm();
   await dialogGone();
@@ -162,16 +162,16 @@ module.exports = async function fakeFlows(t) {
     if (boxes.length) boxes[boxes.length - 1].click();
     return true;
   })()`);
-  await js(`window.__t.byText('#panel-engine button', 'Save settings').click(); true`);
-  await waitFor(`[...document.querySelectorAll('.toast')].some((n) => n.textContent.includes('Engine settings saved'))`, 'the settings to save');
-  await js(`window.__t.byText('#panel-engine button', 'Save settings').scrollIntoView({ block: 'end' }); true`);
+  await js(`window.__t.byText('#panel-engine button', 'Save').click(); true`);
+  await waitFor(`[...document.querySelectorAll('.toast')].some((n) => n.textContent.includes('Saved.'))`, 'the settings to save');
+  await js(`window.__t.byText('#panel-engine button', 'Save').scrollIntoView({ block: 'end' }); true`);
   await shoot('16-engine-settings-saved');
 
   // ------------------------------------------------------------ start, log, run
   await js(`document.getElementById('engineSection').scrollIntoView(); true`);
   await must(`document.getElementById('engineModel').options.length === 2`, 'both installed models are offered for Start');
   await js(`(() => { const s = document.getElementById('engineModel'); s.value = 'local:demo-small'; s.dispatchEvent(new Event('change', { bubbles: true })); document.getElementById('engineStart').click(); return true; })()`);
-  await waitFor(`document.querySelector('.engine-status').textContent.includes('Loading model') || document.querySelector('.engine-status').textContent.includes('Starting')`, 'the engine to begin starting');
+  await waitFor(`document.querySelector('.engine-status').textContent.includes('Loading') || document.querySelector('.engine-status').textContent.includes('Starting')`, 'the engine to begin starting');
   await shoot('17-engine-loading');
   await waitFor(`document.querySelector('.engine-status .badge').textContent === 'Ready'`, 'the engine to be ready', 60000);
   await waitFor(`document.querySelectorAll('.logs[role="log"] .log-line').length > 0`, 'engine log lines');
@@ -256,7 +256,7 @@ module.exports = async function fakeFlows(t) {
   await shoot('29-remove-dialog-dark');
   await confirm();
   await dialogGone();
-  await rowHas(MEDIUM, 'Not installed');
+  await rowHas(MEDIUM, 'Available');
 
   await gotoTab('engine');
   await js(`document.getElementById('engineSection').scrollIntoView(); true`);

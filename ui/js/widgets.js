@@ -1,6 +1,6 @@
 // Reusable interactive widgets (keyboard-accessible tab strips, toggles).
 
-import { el } from './dom.js';
+import { el, infoTip } from './dom.js';
 
 let seq = 0;
 
@@ -73,7 +73,7 @@ export function tabStrip({ label, tabs, initial = null, onChange = null, classNa
 }
 
 /** A labeled checkbox styled like the VoucherVisionGO mode toggles. */
-export function modeToggle({ id, label, hint = null, checked = false, disabled = false, onchange = null }) {
+export function modeToggle({ id, label, hint = null, tip = null, checked = false, disabled = false, onchange = null }) {
     const input = el('input', { type: 'checkbox', id, checked, disabled, onchange });
     const hintId = hint ? `${id}-hint` : null;
     if (hintId) input.setAttribute('aria-describedby', hintId);
@@ -82,6 +82,7 @@ export function modeToggle({ id, label, hint = null, checked = false, disabled =
         node: el('div', { class: ['mode-toggle', disabled ? 'is-disabled' : ''] },
             input,
             el('label', { for: id }, label),
-            hint ? el('span', { class: 'mode-hint', id: hintId }, hint) : null),
+            hint ? el('span', { class: 'mode-hint', id: hintId }, hint) : null,
+            tip ? infoTip(tip) : null),
     };
 }

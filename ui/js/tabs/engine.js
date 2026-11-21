@@ -3,7 +3,7 @@
 
 import { api, inlineError, plainError, toast, toastError } from '../api.js';
 import {
-    el, icon, replace, stateBox, badge, fmtBytes, fmtBytesExact, fmtMemory, fmtDateTime, defList, actionDialog, copyText, prefs,
+    el, icon, infoTip, replace, stateBox, badge, fmtBytes, fmtMemory, fmtDateTime, defList, actionDialog, copyText, prefs,
 } from '../dom.js';
 import { emit, on, gotoTab, loadSettings, updateCachedSettings } from '../state.js';
 import { activeJob, isActive, jobError, jobFor, progressView, refreshJobs, trackJob } from '../jobs.js';
@@ -11,18 +11,19 @@ import { mountModelsFolder } from '../models_folder.js';
 
 const TIER_LABEL = { cpu_only: 'CPU only', entry: 'Entry', mid: 'Mid-range', high: 'High-end', workstation: 'Workstation' };
 const BACKEND_LABEL = { cuda: 'NVIDIA CUDA', metal: 'Apple Metal', vulkan: 'Vulkan', cpu: 'CPU', rocm: 'AMD ROCm', sycl: 'Intel SYCL' };
+const BACKEND_SHORT = { cuda: 'CUDA', metal: 'Metal', vulkan: 'Vulkan', cpu: 'CPU', rocm: 'ROCm', sycl: 'SYCL' };
 const STATE_LABEL = {
     not_installed: ['Not installed', 'neutral'], stopped: ['Stopped', 'neutral'], starting: ['Starting', 'info'],
-    loading_model: ['Loading model', 'info'], ready: ['Ready', 'good'], stopping: ['Stopping', 'info'], error: ['Error', 'bad'],
+    loading_model: ['Loading', 'info'], ready: ['Ready', 'good'], stopping: ['Stopping', 'info'], error: ['Error', 'bad'],
 };
 const STATE_TEXT = {
-    not_installed: 'The engine that runs local models is not installed.',
-    stopped: 'The engine is installed and not running. It starts by itself when a local model is used.',
-    starting: 'The engine is starting.',
-    loading_model: 'The model is being loaded into memory. Large models take a minute or more.',
-    ready: 'The engine is running and ready for requests.',
-    stopping: 'The engine is stopping.',
-    error: 'The engine stopped because of a problem.',
+    not_installed: 'Not installed.',
+    stopped: 'Idle — starts automatically when needed.',
+    starting: 'Starting…',
+    loading_model: 'Loading model…',
+    ready: 'Running.',
+    stopping: 'Stopping…',
+    error: 'Stopped with an error.',
 };
 const TRANSITIONAL = new Set(['starting', 'loading_model', 'stopping']);
 const LOG_STATES = new Set(['starting', 'loading_model', 'ready', 'stopping', 'error']);
@@ -66,8 +67,8 @@ export async function mount(panel) {
     const engineReady = () => engineHooks;
 
     // ------------------------------------------------------------ system report
-    const recheck = el('button', { type: 'button', class: 'button-secondary', onclick: () => loadSystem(true) }, icon('refresh', { size: 14 }), 'Re-check');
-    const sys = section('This computer', recheck);
+    const recheck = el('button', { type: 'button', class: 'button-secondary', onclick: () => loadSystem(true) }, icon('refresh', { size: 14 }), 'Refresh');
+    const sys = section('System', recheck);
 
     function renderSystem(r) {
         const os = r.os || {};
@@ -79,49 +80,54 @@ export async function mount(panel) {
         const acc = r.accelerators || {};
 
         const cards = [
-            sysCard('computer', 'Operating system', os.name || os.system,
-                [os.arch, known(os.kernel) ? `kernel ${os.kernel}` : null].filter(Boolean).join(' · '),
-                os.is_wsl ? 'Running inside Windows Subsystem for Linux' : null),
-            sysCard('cpu', 'Processor', cpu.model,
+            sysCard('computer', 'OS', os.name || os.system,
+                os.arch || null,
+                os.is_wsl ? 'WSL' : null),
+            sysCard('cpu', 'CPU', cpu.model,
                 known(cpu.physical_cores) || known(cpu.logical_cores)
-                    ? `${known(cpu.physical_cores) ? `${cpu.physical_cores} cores` : ''}${known(cpu.physical_cores) && known(cpu.logical_cores) ? ', ' : ''}${known(cpu.logical_cores) ? `${cpu.logical_cores} threads` : ''}` : null),
-            sysCard('memory', 'Memory (RAM)', known(mem.total_bytes) ? fmtMemory(mem.total_bytes) : null,
-                meter(mem.total_bytes - mem.available_bytes, mem.total_bytes, 'Memory in use'),
-                known(mem.available_bytes) ? `${fmtMemory(mem.available_bytes)} available` : null),
-            ...gpus.map((g, i) => sysCard('gpu', gpus.length > 1 ? `Graphics card ${known(g.index) ? g.index : i}` : 'Graphics card', g.name,
-                known(g.vram_total_bytes) ? `${fmtMemory(g.vram_total_bytes)} memory` : 'Memory size unknown',
-                meter(g.vram_total_bytes - g.vram_free_bytes, g.vram_total_bytes, 'Graphics memory in use'),
-                known(g.vram_free_bytes) ? `${fmtMemory(g.vram_free_bytes)} free` : null,
-                [KIND_LABEL[g.kind] || null, known(g.driver_version) ? `driver ${g.driver_version}` : null].filter(Boolean).join(' · '))),
-            gpus.length ? null : sysCard('gpu', 'Graphics card', 'None found', 'Models will run on the processor, which is slower.'),
-            sysCard('disk', 'Disk space for models', known(disk.free_bytes) ? `${fmtBytes(disk.free_bytes)} free` : null,
-                meter(disk.total_bytes - disk.free_bytes, disk.total_bytes, 'Disk space in use'),
-                known(disk.total_bytes) ? `of ${fmtBytes(disk.total_bytes)} at ${disk.checked_path || disk.models_dir || ''}` : null,
-                known(disk.models_dir) ? `Models folder: ${disk.models_dir}${disk.exists === false ? ' (not created yet)' : ''}` : null),
+                    ? [known(cpu.physical_cores) ? `${cpu.physical_cores} cores` : null, known(cpu.logical_cores) ? `${cpu.logical_cores} threads` : null].filter(Boolean).join(' · ') : null),
+            sysCard('memory', 'RAM', known(mem.total_bytes) ? fmtMemory(mem.total_bytes) : null,
+                meter(mem.total_bytes - mem.available_bytes, mem.total_bytes, 'RAM usage'),
+                known(mem.available_bytes) ? `${fmtMemory(mem.available_bytes)} free` : null),
+            ...gpus.map((g, i) => sysCard('gpu', gpus.length > 1 ? `GPU ${known(g.index) ? g.index : i}` : 'GPU', g.name,
+                known(g.vram_total_bytes)
+                    ? `${fmtMemory(g.vram_total_bytes)}${known(g.vram_free_bytes) ? ` · ${fmtMemory(g.vram_free_bytes)} free` : ''}`
+                    : 'Memory unknown',
+                meter(g.vram_total_bytes - g.vram_free_bytes, g.vram_total_bytes, 'GPU memory'))),
+            gpus.length ? null : sysCard('gpu', 'GPU', 'None found', 'Runs on CPU (slower).'),
+            sysCard('disk', 'Disk', known(disk.free_bytes) ? `${fmtBytes(disk.free_bytes)} free` : null,
+                meter(disk.total_bytes - disk.free_bytes, disk.total_bytes, 'Disk usage'),
+                known(disk.total_bytes) ? `of ${fmtBytes(disk.total_bytes)}` : null),
         ].filter(Boolean);
 
         const accRows = Object.entries(acc).filter(([, v]) => v && typeof v === 'object').map(([name, v]) => el('tr', null,
             el('td', null, BACKEND_LABEL[name] || name),
-            el('td', null, v.available === true ? badge('Available', 'good') : (v.available === false ? badge('Not available', 'neutral') : badge('Unknown', 'warn'))),
+            el('td', null, v.available === true ? badge('Available', 'good') : (v.available === false ? badge('Unavailable', 'neutral') : badge('Unknown', 'warn'))),
             el('td', null, v.detail || '')));
         const warnings = Array.isArray(r.warnings) ? r.warnings : [];
         const failed = (Array.isArray(r.probes) ? r.probes : []).filter((p) => p && p.ok === false);
+        const accCard = accRows.length
+            ? el('div', { class: 'card' }, el('div', { class: 'sys-card-title' }, 'Acceleration'),
+                el('div', { class: 'table-wrap' }, el('table', { class: 'data' }, el('tbody', null, accRows))))
+            : null;
 
         replace(sys.body,
             el('div', { class: 'sys-summary' }, icon('check', { size: 26 }),
                 el('div', { class: 'sys-summary-text' },
                     el('div', { class: 'sys-summary-title' }, cap.summary || 'System checked'),
-                    el('div', { class: 'sys-summary-sub' },
-                        known(cap.recommended_backend) ? `Recommended engine type: ${BACKEND_LABEL[cap.recommended_backend] || cap.recommended_backend}. ` : '',
-                        cap.backend_reason || '')),
-                known(cap.tier) ? badge(`${TIER_LABEL[cap.tier] || cap.tier} tier`, 'good') : null),
+                    el('div', { class: 'sys-summary-sub' }, cap.backend_reason || '')),
+                known(cap.recommended_backend)
+                    ? badge(BACKEND_SHORT[cap.recommended_backend] || cap.recommended_backend, 'good')
+                    : (known(cap.tier) ? badge(TIER_LABEL[cap.tier] || cap.tier, 'good') : null)),
             warnings.length ? el('ul', { class: 'warning-list' }, warnings.map((w) => el('li', { class: 'notice notice-warn' }, icon('alert', { size: 18 }), el('span', null, (w && w.message) || String(w))))) : null,
             el('div', { class: 'sys-grid' }, cards),
-            accRows.length ? el('div', { class: 'card' }, el('div', { class: 'sys-card-title' }, 'Acceleration'),
-                el('div', { class: 'table-wrap' }, el('table', { class: 'data' }, el('tbody', null, accRows)))) : null,
-            failed.length ? el('p', { class: 'help-text' }, `Some checks could not run: ${failed.map((p) => p.name).join(', ')}.`) : null,
-            el('p', { class: 'help-text' }, `Checked ${fmtDateTime(r.generated_at)}`),
-            el('details', { class: 'raw' }, el('summary', null, 'Technical details (JSON)'), el('pre', { class: 'json-content' }, JSON.stringify(r, null, 2))));
+            el('details', { class: 'diag-details' },
+                el('summary', null, 'Diagnostics'),
+                el('div', { class: 'diag-body' },
+                    accCard,
+                    failed.length ? el('p', { class: 'help-text' }, `Skipped checks: ${failed.map((p) => p.name).join(', ')}.`) : null,
+                    el('p', { class: 'help-text' }, `Checked ${fmtDateTime(r.generated_at)}`),
+                    el('details', { class: 'raw' }, el('summary', null, 'System JSON'), el('pre', { class: 'json-content' }, JSON.stringify(r, null, 2))))));
     }
 
     async function loadSystem(refresh = false) {
@@ -143,13 +149,13 @@ export async function mount(panel) {
     // ------------------------------------------------------------ models folder
     // The same card (path, Browse, Save, and the space-used bar) is also shown above the
     // local models on the Models tab: ui/js/models_folder.js.
-    const folder = section('Models folder');
+    const folder = section('Storage');
     function loadFolder() {
         mountModelsFolder(folder.body, { onSaved: () => { loadSystem(true); loadEngine(); } });
     }
 
     // ------------------------------------------------------------ engine
-    const engine = section('Local engine');
+    const engine = section('Engine');
     engine.node.id = 'engineSection';
     let data = null;            // last GET /v1/engine
     let localBuilds = [];       // builds from GET /v1/models (labels, what is installed)
@@ -241,30 +247,26 @@ export async function mount(panel) {
         const running = Boolean(m.running) || st === 'ready' || st === 'starting' || st === 'loading_model';
         const rows = [];
         if (m.installed) {
-            rows.push(['Engine', `llama.cpp ${m.version || ''}${m.variant && m.variant.label ? ` · ${m.variant.label}` : ''}`.trim()]);
-            rows.push(['Runs on', BACKEND_LABEL[m.backend] || m.backend || null]);
+            rows.push(['Version', `${m.version || ''}${m.variant && m.variant.label ? ` · ${m.variant.label}` : ''}`.trim()]);
         }
         const engines = Array.isArray(m.engines) ? m.engines : [];
         if (running && engines.length > 1) {
-            // Several engines: one line each (which model, on which card, how many images at a time).
             for (const e of engines) {
-                const where = m.backend === 'cpu' ? 'processor' : gpuNames(e.gpu_devices);
+                const where = m.backend === 'cpu' ? 'CPU' : gpuNames(e.gpu_devices);
                 const parts = [e.model_id ? modelLabel(e.model_id) : null, where,
-                    known(e.parallel) ? `${e.parallel} image${e.parallel === 1 ? '' : 's'} at a time` : null,
+                    known(e.parallel) ? `${e.parallel} parallel` : null,
                     e.state && e.state !== 'ready' ? 'loading' : null].filter(Boolean);
                 rows.push([`Engine ${e.number}`, parts.join(' · ')]);
             }
-            rows.push(['Context size', known(m.context_size) ? `${Number(m.context_size).toLocaleString('en-US')} tokens per request` : null]);
-            rows.push(['In progress', m.active_requests ? `${m.active_requests} request${m.active_requests === 1 ? '' : 's'}` : null]);
+            rows.push(['Context', known(m.context_size) ? `${Math.round(Number(m.context_size) / 1024)}K` : null]);
+            rows.push(['Active', m.active_requests ? `${m.active_requests} request${m.active_requests === 1 ? '' : 's'}` : null]);
         } else if (running) {
             rows.push(['Model', m.loaded_model ? modelLabel(m.loaded_model) : null]);
-            rows.push(['Graphics card', m.backend === 'cpu' ? 'None (processor only)' : gpuNames(m.gpu_devices)]);
-            rows.push(['Context size', known(m.context_size) ? `${Number(m.context_size).toLocaleString('en-US')} tokens per request` : null]);
-            rows.push(['Requests at once', known(m.parallel) ? `${m.parallel}${m.active_requests ? ` (${m.active_requests} in progress)` : ''}` : null]);
-            rows.push(['Started', m.started_at ? fmtDateTime(m.started_at) : null]);
+            rows.push(['GPU', m.backend === 'cpu' ? 'CPU only' : gpuNames(m.gpu_devices)]);
+            rows.push(['Context', known(m.context_size) ? `${Math.round(Number(m.context_size) / 1024)}K` : null]);
+            rows.push(['Parallel', known(m.parallel) ? `${m.parallel}${m.active_requests ? ` (${m.active_requests} active)` : ''}` : null]);
             const idleMinutes = (data.settings || {}).idle_stop_minutes;
-            rows.push(['Stops when idle', m.idle_stop_at ? `at ${fmtDateTime(m.idle_stop_at)} if nothing uses it`
-                : (idleMinutes ? `after ${idleMinutes} minute${idleMinutes === 1 ? '' : 's'} without a request` : 'Never')]);
+            rows.push(['Auto-stop', m.idle_stop_at ? fmtDateTime(m.idle_stop_at) : (idleMinutes ? `${idleMinutes} min idle` : 'Off')]);
         }
 
         // While the engine is still starting, some details are not known yet: leave those lines out.
@@ -272,19 +274,19 @@ export async function mount(panel) {
 
         const choice = modelSelect.value;
         const sameLoaded = st === 'ready' && m.loaded_model === choice;
-        const startLabel = st === 'ready' && m.loaded_model && m.loaded_model !== choice ? 'Switch model' : 'Start';
+        const startLabel = st === 'ready' && m.loaded_model && m.loaded_model !== choice ? 'Switch' : 'Start';
         let hint = null;
-        if (!m.installed) hint = 'Install an engine build below to run local models.';
-        else if (!installed.length) hint = 'No local model is downloaded yet.';
+        if (!m.installed) hint = 'Install a build below to run local models.';
+        else if (!installed.length) hint = 'No local models downloaded.';
         const start = el('button', {
             type: 'button', class: 'button', id: 'engineStart',
             disabled: busyAction || !m.installed || !installed.length || sameLoaded || st === 'stopping' || st === 'starting' || st === 'loading_model',
-            onclick: () => engineAction('/v1/engine/start', { model_id: modelSelect.value }, 'The engine did not start'),
+            onclick: () => engineAction('/v1/engine/start', { model_id: modelSelect.value }, 'Start failed'),
         }, icon('play', { size: 14 }), startLabel);
         const stop = el('button', {
             type: 'button', class: 'button-secondary', id: 'engineStop',
             disabled: busyAction || !running || st === 'stopping',
-            onclick: () => engineAction('/v1/engine/stop', {}, 'The engine did not stop'),
+            onclick: () => engineAction('/v1/engine/stop', {}, 'Stop failed'),
         }, icon('stop', { size: 14 }), 'Stop');
 
         const err = m.last_error;
@@ -297,36 +299,30 @@ export async function mount(panel) {
             shownRows.length ? defList(shownRows, 'kv engine-kv') : null,
             el('div', { class: 'engine-actions' },
                 el('label', { for: 'engineModel', class: 'engine-model-label' }, 'Model'),
-                installed.length ? modelSelect : el('span', { class: 'help-text' }, 'None downloaded'),
+                installed.length ? modelSelect : el('span', { class: 'help-text' }, 'None'),
                 start, stop,
-                !installed.length && m.installed ? el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('models') }, 'Download a model') : null),
+                !installed.length && m.installed ? el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('models') }, 'Download model') : null),
             hint ? el('p', { class: 'help-text' }, hint) : null,
-            m.installed ? el('p', { class: 'help-text' },
-                'Engines are arranged automatically: a model runs on every graphics card it fits on, and the OCR and parsing models stay loaded together when both fit.',
-                data.plan && data.plan.summary ? ` With the current selection: ${data.plan.summary}` : '') : null,
+            m.installed && data.plan && data.plan.summary ? el('p', { class: 'help-text' }, data.plan.summary) : null,
             err ? el('div', { class: 'job-problem', role: 'alert' }, icon('alert', { size: 18 }),
                 el('div', { class: 'job-problem-body' },
-                    el('div', { class: 'job-problem-title' }, err.message || 'The engine stopped with an error.'),
-                    el('div', { class: 'job-problem-hint' }, [err.at ? fmtDateTime(err.at) : null, known(err.exit_code) ? `exit code ${err.exit_code}` : null].filter(Boolean).join(' · ')),
-                    tail.length ? el('details', { class: 'raw' }, el('summary', null, 'Last engine output'), el('pre', { class: 'logs logs-small', tabindex: '0' }, tail.join('\n'))) : null)) : null);
+                    el('div', { class: 'job-problem-title' }, err.message || 'Engine error.'),
+                    el('div', { class: 'job-problem-hint' }, [err.at ? fmtDateTime(err.at) : null, known(err.exit_code) ? `exit ${err.exit_code}` : null].filter(Boolean).join(' · ')),
+                    tail.length ? el('details', { class: 'raw' }, el('summary', null, 'Engine output'), el('pre', { class: 'logs logs-small', tabindex: '0' }, tail.join('\n'))) : null)) : null);
     }
 
     // ---- builds: install and uninstall
     async function confirmInstall(variant) {
-        const sep = (data.models_dir || '').includes('\\') ? '\\' : '/';
         const started = await actionDialog({
-            title: 'Install the engine?',
+            title: `Install ${variant.label}?`,
             body: [
                 defList([
-                    ['Build', variant.label],
-                    ['Runs on', BACKEND_LABEL[variant.backend] || variant.backend],
-                    ['Download size', fmtBytesExact(variant.download_size_bytes)],
-                    ['Saved to', data.models_dir ? `${data.models_dir.replace(/[\\/]+$/, '')}${sep}engine` : 'The models folder'],
+                    ['Backend', BACKEND_SHORT[variant.backend] || variant.backend],
+                    ['Size', fmtBytes(variant.download_size_bytes)],
                 ], 'kv kv-dialog'),
-                variant.compatible === false ? el('div', { class: 'notice notice-warn' }, icon('alert', { size: 18 }), el('span', null, `This build is not expected to work here. ${variant.reason || ''}`)) : null,
-                el('p', { class: 'help-text' }, 'After the download, the engine is tested on this computer before it is used.'),
+                variant.compatible === false ? el('div', { class: 'notice notice-warn' }, icon('alert', { size: 18 }), el('span', null, `May not work here. ${variant.reason || ''}`)) : null,
             ],
-            confirmLabel: `Install ${fmtBytes(variant.download_size_bytes)}`,
+            confirmLabel: `Install (${fmtBytes(variant.download_size_bytes)})`,
             describe: plainError,
             action: async () => {
                 const res = await api.post('/v1/engine/install', { variant: variant.id }, { timeoutMs: 60000 });
@@ -340,7 +336,7 @@ export async function mount(panel) {
     async function confirmUninstall(variant) {
         const next = await actionDialog({
             title: `Uninstall ${variant.label}?`,
-            body: ['The engine files are deleted. Downloaded models are kept. You can install the engine again later.'],
+            body: ['Removes the engine. Downloaded models are kept.'],
             confirmLabel: 'Uninstall',
             danger: true,
             describe: plainError,
@@ -368,7 +364,7 @@ export async function mount(panel) {
         if (key !== buildsKey) {
             buildsKey = key;
             installViews.clear();
-            const blockReason = job ? 'An engine install is running.' : (engineBusy ? 'Stop the engine before installing or uninstalling a build.' : null);
+            const blockReason = job ? 'Install in progress.' : (engineBusy ? 'Stop engine to change builds.' : null);
             const body = [];
             variants.forEach((v, i) => {
                 const mine = lastJobs[i];
@@ -385,12 +381,12 @@ export async function mount(panel) {
                 }
                 body.push(el('tr', null,
                     el('th', { scope: 'row', class: 'build-name' }, el('strong', null, v.label),
-                        isRec ? el('div', { class: 'recommended-mark' }, icon('star', { size: 13 }), 'Recommended for this computer') : null),
-                    el('td', { class: 'nowrap' }, BACKEND_LABEL[v.backend] || v.backend || '—'),
+                        isRec ? el('div', { class: 'recommended-mark' }, icon('star', { size: 13 }), 'Recommended') : null),
+                    el('td', { class: 'nowrap' }, BACKEND_SHORT[v.backend] || v.backend || '—'),
                     el('td', { class: 'nowrap' }, fmtBytes(v.download_size_bytes)),
                     el('td', null,
-                        v.installed ? badge('Installed', 'good') : (v.compatible ? badge('Compatible', 'neutral') : badge('Not compatible', 'bad')),
-                        v.reason ? el('div', { class: 'fit-detail' }, v.reason) : null),
+                        v.installed ? badge('Installed', 'good') : (v.compatible ? badge('Compatible', 'neutral') : badge('Incompatible', 'bad')),
+                        infoTip(v.reason)),
                     el('td', { class: 'build-action' }, el('div', { class: 'row-actions' }, action,
                         blockReason && !installing ? el('span', { class: 'visually-hidden', id: reasonId }, blockReason) : null))));
                 let detail = null;
@@ -406,24 +402,22 @@ export async function mount(panel) {
                     const outputText = Array.isArray(output) ? output.join('\n') : (typeof output === 'string' ? output : '');
                     detail = el('div', { class: 'job-problem', role: 'alert' }, icon('alert', { size: 18 }),
                         el('div', { class: 'job-problem-body' },
-                            el('div', { class: 'job-problem-title' }, problem.code === 'ENGINE_SELF_TEST_FAILED' ? 'This build cannot run on this computer.' : 'The install did not finish.'),
+                            el('div', { class: 'job-problem-title' }, problem.code === 'ENGINE_SELF_TEST_FAILED' ? 'Build failed self-test.' : 'Install failed.'),
                             el('div', { class: 'job-problem-hint' }, problem.message),
                             problem.hint ? el('div', { class: 'job-problem-hint' }, problem.hint) : null,
                             next && !next.installed ? el('div', { class: 'job-problem-actions' },
-                                el('button', { type: 'button', class: 'button button-small', disabled: Boolean(blockReason), onclick: () => confirmInstall(next) }, icon('download', { size: 13 }), `Install ${next.label} instead`)) : null,
+                                el('button', { type: 'button', class: 'button button-small', disabled: Boolean(blockReason), onclick: () => confirmInstall(next) }, icon('download', { size: 13 }), `Install ${next.label}`)) : null,
                             outputText.trim() ? el('details', { class: 'raw' }, el('summary', null, 'Test output'), el('pre', { class: 'logs logs-small', tabindex: '0' }, outputText)) : null));
                 }
                 if (detail) body.push(el('tr', { class: 'build-detail-row' }, el('td', { colspan: '5' }, detail)));
             });
             replace(buildsCard,
-                el('div', { class: 'sys-card-title' }, icon('download', { size: 16 }), 'Engine builds for this computer'),
-                rec
-                    ? el('p', { class: 'help-text' }, `Recommended: ${rec.label} (${fmtBytes(rec.download_size_bytes)} download).${rec.reason && !rec.reason.startsWith(rec.label) ? ` ${rec.reason}` : ''}`)
-                    : el('p', { class: 'help-text' }, data.unavailable_reason || 'No build is recommended for this computer.'),
+                el('div', { class: 'sys-card-title' }, icon('download', { size: 16 }), 'Builds'),
+                !rec ? el('p', { class: 'help-text' }, data.unavailable_reason || 'No compatible build found.') : null,
                 blockReason && !job ? el('p', { class: 'help-text' }, blockReason) : null,
                 variants.length
                     ? el('div', { class: 'table-wrap' }, el('table', { class: 'data build-table' },
-                        el('thead', null, el('tr', null, ['Build', 'Runs on', 'Download size', 'On this computer', ''].map((t) => el('th', { scope: 'col' }, t || el('span', { class: 'visually-hidden' }, 'Actions'))))),
+                        el('thead', null, el('tr', null, ['Build', 'Backend', 'Size', 'Status', ''].map((t) => el('th', { scope: 'col' }, t || el('span', { class: 'visually-hidden' }, 'Actions'))))),
                         el('tbody', null, body)))
                     : null);
         }
@@ -433,15 +427,15 @@ export async function mount(panel) {
     // ---- settings
     const form = {
         variant: el('select', { id: 'engVariant' }),
-        ctxMode: el('select', { id: 'engCtxMode' }, el('option', { value: 'auto' }, 'Automatic'), el('option', { value: 'custom' }, 'Custom')),
+        ctxMode: el('select', { id: 'engCtxMode' }, el('option', { value: 'auto' }, 'Auto'), el('option', { value: 'custom' }, 'Custom')),
         ctx: el('input', { type: 'number', id: 'engCtx', min: '8192', max: '262144', step: '1024', inputmode: 'numeric', 'aria-label': 'Context size in tokens' }),
-        parallel: el('input', { type: 'number', id: 'engParallel', min: '1', max: '16', step: '1', inputmode: 'numeric', placeholder: 'Automatic' }),
+        parallel: el('input', { type: 'number', id: 'engParallel', min: '1', max: '16', step: '1', inputmode: 'numeric', placeholder: 'Auto' }),
         staged: el('input', { type: 'checkbox', id: 'engStaged' }),
         gpuAuto: el('input', { type: 'radio', name: 'engGpuMode', id: 'engGpuAuto', value: 'auto' }),
         gpuPick: el('input', { type: 'radio', name: 'engGpuMode', id: 'engGpuPick', value: 'pick' }),
         gpuList: el('div', { class: 'gpu-choices' }),
         idle: el('input', { type: 'number', id: 'engIdle', min: '0', max: '10080', step: '1', inputmode: 'numeric' }),
-        save: el('button', { type: 'button', class: 'button' }, 'Save settings'),
+        save: el('button', { type: 'button', class: 'button' }, 'Save'),
         problem: el('div', { class: 'modal-problem', role: 'alert', hidden: true }),
     };
     let formDirty = false;
@@ -487,7 +481,7 @@ export async function mount(panel) {
         const key = JSON.stringify([s, variants.map((v) => [v.id, v.label])]);
         if (formDirty || key === formKey) return;
         formKey = key;
-        const options = [el('option', { value: 'auto' }, 'Automatic (the recommended build)'), ...variants.map((v) => el('option', { value: v.id }, v.label))];
+        const options = [el('option', { value: 'auto' }, 'Auto (recommended)'), ...variants.map((v) => el('option', { value: v.id }, v.label))];
         if (s.variant !== 'auto' && !variants.some((v) => v.id === s.variant)) options.push(el('option', { value: s.variant }, s.variant));
         replace(form.variant, options);
         form.variant.value = s.variant || 'auto';
@@ -546,7 +540,7 @@ export async function mount(panel) {
             formKey = null;
             if (data && settings.engine) data.settings = settings.engine;
             fillForm();
-            toast('Engine settings saved. They apply the next time the engine starts.', 'success');
+            toast('Saved. Applies on next start.', 'success');
             emit('engine-changed');
         } catch (err) {
             replace(form.problem, icon('alert', { size: 18 }), el('span', null, plainError(err)));
@@ -571,32 +565,32 @@ export async function mount(panel) {
     }
     form.save.addEventListener('click', saveSettings);
 
-    function field(labelText, forId, control, help = null) {
-        return el('div', { class: 'form-field' }, el('label', { for: forId }, labelText), control, help ? el('p', { class: 'help-text' }, help) : null);
+    function field(labelText, forId, control, tipText = null) {
+        return el('div', { class: 'form-field' }, el('label', { for: forId }, labelText, infoTip(tipText, 'start')), control);
     }
 
     replace(settingsCard,
-        el('div', { class: 'sys-card-title' }, icon('settings', { size: 16 }), 'Engine settings'),
-        el('p', { class: 'help-text' }, 'Changes apply the next time the engine starts.'),
+        el('div', { class: 'sys-card-title' }, icon('settings', { size: 16 }), 'Settings', infoTip('Changes apply on next engine start.', 'start')),
         el('div', { class: 'form-grid' },
-            field('Engine build', 'engVariant', form.variant, 'Automatic uses the build recommended for this computer.'),
-            field('Context size', 'engCtxMode', el('div', { class: 'row' }, form.ctxMode, form.ctx),
-                'How much text and image data fits in one request, in tokens. Automatic suits the chosen model.'),
-            field('Requests at once, per engine', 'engParallel', form.parallel, 'Leave blank for Automatic: as many as graphics memory allows, up to 4. More uses more graphics memory.'),
-            field('Stop when idle after (minutes)', 'engIdle', form.idle, 'Frees graphics memory when nothing has used the engine for this long. 0 keeps it running.'),
-            el('fieldset', { class: 'form-field form-fieldset' }, el('legend', null, 'Graphics cards'),
-                el('label', { class: 'check-row', for: 'engGpuAuto' }, form.gpuAuto, 'Automatic (the card with the most free memory, or all cards for a large model)'),
-                el('label', { class: 'check-row', for: 'engGpuPick' }, form.gpuPick, 'Only these cards:'),
+            field('Build', 'engVariant', form.variant, 'Auto uses the recommended build for your hardware.'),
+            field('Context', 'engCtxMode', el('div', { class: 'row' }, form.ctxMode, form.ctx),
+                'Memory window per request in tokens. Auto fits the chosen model.'),
+            field('Parallel requests', 'engParallel', form.parallel, 'Blank = Auto (up to 4, based on GPU memory).'),
+            field('Idle timeout (min)', 'engIdle', form.idle, 'Frees GPU memory after idle time. 0 = stay running.'),
+            el('fieldset', { class: 'form-field form-fieldset' }, el('legend', null, 'GPUs'),
+                el('label', { class: 'check-row', for: 'engGpuAuto' }, form.gpuAuto, 'Auto',
+                    infoTip('Uses the GPU with the most free memory, or all GPUs for large models.', 'start')),
+                el('label', { class: 'check-row', for: 'engGpuPick' }, form.gpuPick, 'Selected:'),
                 form.gpuList),
             el('div', { class: 'form-field' },
-                el('label', { class: 'check-row', for: 'engStaged' }, form.staged, 'In batches, run all OCR first, then all parsing'),
-                el('p', { class: 'help-text' }, 'This always happens when the OCR and parsing models do not fit in graphics memory together.'))),
+                el('label', { class: 'check-row', for: 'engStaged' }, form.staged, 'Run all OCR before parsing in batches',
+                    infoTip('Reduces model swaps when using separate OCR and parsing models.', 'start')))),
         form.problem,
         el('div', { class: 'engine-actions' }, form.save));
 
     // ---- log console
     const logView = el('pre', { class: 'logs', role: 'log', 'aria-label': 'Engine log', 'aria-live': 'off', tabindex: '0' });
-    const logEmpty = el('span', { class: 'logs-empty' }, 'No engine output yet.');
+    const logEmpty = el('span', { class: 'logs-empty' }, 'No output.');
     logView.appendChild(logEmpty);
     let logCursor = null;
     let logTimer = null;
@@ -650,7 +644,7 @@ export async function mount(panel) {
 
     replace(logCard,
         el('div', { class: 'log-head' },
-            el('div', { class: 'sys-card-title' }, icon('terminal', { size: 16 }), 'Engine log'),
+            el('div', { class: 'sys-card-title' }, icon('terminal', { size: 16 }), 'Log'),
             el('span', { class: 'spacer' }),
             el('button', {
                 type: 'button', class: 'button-secondary button-small',

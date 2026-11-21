@@ -118,7 +118,7 @@ module.exports = async function headerMonitor(t) {
 
   // ---- in-page jumps land below the bars
   await gotoTab('models');
-  const jumped = await js(`(() => { const b = [...document.querySelectorAll('#panel-models .link-button')].find((x) => /Add a key|Manage key/.test(x.textContent)); if (!b) return false; b.click(); return true; })()`);
+  const jumped = await js(`(() => { const b = [...document.querySelectorAll('#panel-models .link-button')].find((x) => /Add key|^Key$/.test(x.textContent.trim())); if (!b) return false; b.click(); return true; })()`);
   if (jumped) {
     await waitFor(`window.vvlUi.activeTab() === 'keys' && Boolean(document.querySelector('.key-card.is-highlighted'))`, 'the highlighted key card');
     await sleep(500);
@@ -201,7 +201,7 @@ module.exports = async function headerMonitor(t) {
       const filename = await js(`(() => { const m = /"filename": "([^"]*)"/.exec(document.querySelector('.json-content').textContent); return m ? m[1] : null; })()`);
       notes.push(`filename in the response: ${filename}`);
       if (filename !== 'MICH-V-1122841.jpg') problems.push(`the response filename is ${filename}`);
-      await js(`[...document.querySelectorAll('.json-controls button')].find((b) => /Download JSON/.test(b.textContent)).click(); true`);
+      await js(`[...document.querySelectorAll('.json-controls button')].find((b) => /^JSON$/.test(b.textContent.trim())).click(); true`);
       const downloads = await js('window.__downloads');
       notes.push(`download names: ${JSON.stringify(downloads)}`);
       if (downloads[0] !== 'MICH-V-1122841.json') problems.push(`the JSON download is named ${downloads[0]}`);

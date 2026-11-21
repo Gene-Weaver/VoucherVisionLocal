@@ -117,7 +117,7 @@ module.exports = async function setupPage(t) {
 
   // The model download. The fake catalog recommends its "bad checksum" build, so a
   // working build is started through the API instead; the page follows any download.
-  await must(`/Recommended for this computer/.test(${stepText('model')})`, 'the model step names the recommended build');
+  await must(`/Recommended:/.test(${stepText('model')})`, 'the model step names the recommended build');
   const models = await authFetch('GET', '/v1/models');
   const small = models.local.families.flatMap((f) => f.builds).find((b) => b.id === 'demo-small');
   await authFetch('POST', '/v1/models/local/demo-small/download', { confirm_size_bytes: small.total_size_bytes });

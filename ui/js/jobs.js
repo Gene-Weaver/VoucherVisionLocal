@@ -95,12 +95,12 @@ export function jobPercent(job) {
 }
 
 const ERROR_HINTS = {
-    NETWORK_ERROR: 'Check the internet connection, then try again. The download continues from where it stopped.',
-    DOWNLOAD_FAILED: 'Try again. The download continues from where it stopped.',
-    HTTP_ERROR: 'The download server refused the request. Try again later.',
-    INSUFFICIENT_DISK_SPACE: 'Free some disk space or choose another models folder on the Engine tab, then try again.',
-    GATED_MODEL: 'This model needs a Hugging Face token and its license accepted on the model page. Add the token on the Keys tab, then try again.',
-    EXTRACT_FAILED: 'The downloaded engine could not be unpacked. Try again.',
+    NETWORK_ERROR: 'Check your internet connection and retry.',
+    DOWNLOAD_FAILED: 'Retry to resume where it stopped.',
+    HTTP_ERROR: 'Server refused the request. Try again later.',
+    INSUFFICIENT_DISK_SPACE: 'Free up disk space or change the models folder, then retry.',
+    GATED_MODEL: 'Requires a Hugging Face token (Keys tab) and license acceptance on the model page.',
+    EXTRACT_FAILED: 'Could not unpack the engine download. Try again.',
 };
 
 /** {message, hint} for a failed job; both are plain sentences. */
@@ -141,15 +141,15 @@ export function progressView(label) {
         let text;
         let right = '';
         if (verifying) {
-            text = 'Verifying the files…';
+            text = 'Verifying…';
         } else if (job.state === 'queued') {
             const n = Number(job.queue_position);
-            text = Number.isInteger(n) && n > 0 ? `Waiting to start (number ${n} in line)…` : 'Waiting to start…';
+            text = Number.isInteger(n) && n > 0 ? `Queued (#${n})` : 'Queued';
         } else {
-            text = `${fmtBytes(job.bytes_done)} of ${fmtBytes(job.bytes_total)} (${pct}%)`;
+            text = `${fmtBytes(job.bytes_done)} / ${fmtBytes(job.bytes_total)} (${pct}%)`;
             const parts = [];
             if (job.speed_bps > 0) parts.push(`${fmtBytes(job.speed_bps)}/s`);
-            if (Number.isFinite(job.eta_seconds) && job.eta_seconds !== null) parts.push(`about ${fmtDuration(job.eta_seconds)} left`);
+            if (Number.isFinite(job.eta_seconds) && job.eta_seconds !== null) parts.push(`~${fmtDuration(job.eta_seconds)} left`);
             right = parts.join(' · ');
         }
         track.setAttribute('aria-valuetext', verifying || job.state === 'queued' ? text : `${pct}%, ${text}${right ? `, ${right}` : ''}`);
@@ -183,11 +183,11 @@ export function mountIndicator(host) {
         const install = current.kind === 'engine_install';
         const detector = current.kind === 'detector_download';
         // Short enough for the narrow header (190 px); the tooltip says the rest.
-        const what = install ? 'Engine install' : (detector ? 'Label detector' : `Downloading ${current.label || 'a model'}`);
-        const state = current.state === 'verifying' ? 'verifying' : (current.state === 'queued' ? 'waiting' : `${jobPercent(current)}%`);
+        const what = install ? 'Engine install' : (detector ? 'Label detector' : (current.label || 'Downloading'));
+        const state = current.state === 'verifying' ? 'verifying' : (current.state === 'queued' ? 'queued' : `${jobPercent(current)}%`);
         const waiting = active.filter((j) => j.kind === 'model_download' && j.state === 'queued' && j !== current).length;
-        text.textContent = `${what} · ${state}${waiting ? ` · ${waiting} more queued` : ''}`;
-        button.title = install ? 'Installing the engine. Show it on the Engine tab' : (detector ? 'Downloading the label detector. Show it on the Setup page' : 'Show the download on the Models tab');
+        text.textContent = `${what} · ${state}${waiting ? ` · ${waiting} queued` : ''}`;
+        button.title = install ? 'Installing the engine. View on Engine tab' : (detector ? 'Downloading the label detector. View on Setup page' : 'View on Models tab');
     };
     on('jobs-changed', render);
     render();

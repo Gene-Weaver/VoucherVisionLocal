@@ -89,7 +89,7 @@ module.exports = async function realRun(t) {
     await js(`document.querySelector('.step-container:last-of-type').scrollIntoView(); true`);
     await shoot('real-06-result');
     notes.push(`first result: ${await js(`JSON.stringify(Object.fromEntries([...document.querySelectorAll('.field-table tr')].slice(0, 12).map((r) => [r.children[0].textContent, r.children[1].textContent])))`)}`);
-    await js(`[...document.querySelectorAll('.result-tab')].find((b) => b.textContent === 'OCR Text').click(); true`);
+    await js(`[...document.querySelectorAll('.result-tab')].find((b) => b.textContent === 'OCR').click(); true`);
     await shoot('real-07-result-ocr');
     await js(`[...document.querySelectorAll('.result-tab')].find((b) => b.textContent === 'Usage').click(); true`);
     await shoot('real-08-result-usage');

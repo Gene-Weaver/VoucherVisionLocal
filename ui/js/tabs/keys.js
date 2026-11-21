@@ -3,16 +3,16 @@
 // outlives it, in web storage, or in the DOM after saving.
 
 import { api, inlineError, toast, toastError } from '../api.js';
-import { el, icon, replace, stateBox, badge, externalLink, confirmDialog, fmtDateTime } from '../dom.js';
+import { el, icon, infoTip, replace, stateBox, badge, externalLink, confirmDialog, fmtDateTime } from '../dom.js';
 import { emit, getAppInfo } from '../state.js';
 
 const GROUPS = [
-    ['model_provider', 'Model providers'],
-    ['enrichment', 'Data enrichment'],
+    ['model_provider', 'AI models'],
+    ['enrichment', 'Enrichment'],
     ['downloads', 'Downloads'],
 ];
 const TEST_KIND = { ok: 'good', invalid_key: 'bad', not_configured: 'warn', network_error: 'warn', error: 'bad' };
-const TEST_LABEL = { ok: 'Key works', invalid_key: 'Key rejected', not_configured: 'No key saved', network_error: 'Could not connect', error: 'Test failed' };
+const TEST_LABEL = { ok: 'Working', invalid_key: 'Invalid', not_configured: 'Not set', network_error: 'Offline', error: 'Failed' };
 
 export async function mount(panel) {
     const info = getAppInfo() || {};
@@ -28,31 +28,34 @@ export async function mount(panel) {
         function render() {
             const p = provider;
             const inputs = [];
+            const singleField = (p.fields || []).length === 1;
             const fieldNodes = (p.fields || []).map((f) => {
                 const id = `key-${p.id}-${f.name}`;
                 const input = el('input', {
-                    type: 'password', id, name: f.name, placeholder: f.placeholder || '',
+                    type: 'password', id, name: f.name, placeholder: f.placeholder || 'Paste key…',
                     autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', disabled: Boolean(busy),
+                    'aria-label': f.label || f.name,
                 });
                 inputs.push(input);
-                const toggle = el('button', { type: 'button', class: 'icon-button', 'aria-label': 'Show what you typed', 'aria-pressed': 'false', title: 'Show or hide what you typed' }, icon('eye', { size: 16 }));
+                const toggle = el('button', { type: 'button', class: 'icon-button', 'aria-label': 'Show', 'aria-pressed': 'false', title: 'Show/hide' }, icon('eye', { size: 16 }));
                 toggle.addEventListener('click', () => {
                     const show = input.type === 'password';
                     input.type = show ? 'text' : 'password';
                     toggle.setAttribute('aria-pressed', String(show));
-                    toggle.setAttribute('aria-label', show ? 'Hide what you typed' : 'Show what you typed');
+                    toggle.setAttribute('aria-label', show ? 'Hide' : 'Show');
                     replace(toggle, icon(show ? 'eyeOff' : 'eye', { size: 16 }));
                 });
                 input.addEventListener('keydown', (ev) => {
                     if (ev.key === 'Enter') save();
                 });
                 return el('div', { class: 'key-field' },
-                    el('label', { for: id }, f.label || f.name,
-                        f.saved ? badge('Saved', 'good') : badge('Not saved', 'neutral'),
+                    singleField ? null : el('label', { for: id }, f.label || f.name,
+                        f.saved ? badge('Saved', 'good') : badge('Not set', 'neutral'),
                         f.saved && f.masked ? el('span', { class: 'key-mask' }, f.masked) : null),
                     el('div', { class: 'key-input-row' }, input, toggle));
             });
             const anySaved = (p.fields || []).some((f) => f.saved);
+            const firstMasked = ((p.fields || []).find((f) => f.saved && f.masked) || {}).masked;
 
             async function save() {
                 const fields = {};
@@ -65,12 +68,12 @@ export async function mount(panel) {
                     toast('Paste a key first.', 'warning');
                     return;
                 }
-                await act('save', () => api.put(`/v1/keys/${encodeURIComponent(p.id)}`, { fields }), 'Key saved.');
+                await act('save', () => api.put(`/v1/keys/${encodeURIComponent(p.id)}`, { fields }), 'Saved.');
             }
 
             async function remove() {
-                const yes = await confirmDialog({ title: `Remove the ${p.label} key?`, message: `The saved key is deleted from ${privateFile}.`, confirmLabel: 'Remove', danger: true });
-                if (yes) await act('remove', () => api.del(`/v1/keys/${encodeURIComponent(p.id)}`), 'Key removed.');
+                const yes = await confirmDialog({ title: `Remove ${p.label} key?`, message: 'Deletes the saved key from this computer.', confirmLabel: 'Remove', danger: true });
+                if (yes) await act('remove', () => api.del(`/v1/keys/${encodeURIComponent(p.id)}`), 'Removed.');
             }
 
             async function test() {
@@ -80,7 +83,7 @@ export async function mount(panel) {
                     const result = await api.post(`/v1/keys/${encodeURIComponent(p.id)}/test`, {}, { timeoutMs: 30000 });
                     provider = { ...provider, last_test: result };
                 } catch (err) {
-                    toastError(err, `${p.label} key test`);
+                    toastError(err, `${p.label} test`);
                 } finally {
                     busy = null;
                     render();
@@ -90,24 +93,24 @@ export async function mount(panel) {
             const t = p.last_test;
             replace(card,
                 el('div', { class: 'card-header' }, el('h3', null, p.label),
-                    p.configured ? badge('Key saved', 'good') : badge('No key saved', 'neutral'),
-                    p.optional ? badge('Optional', 'neutral') : null,
+                    p.configured ? badge('Saved', 'good') : badge('Not set', 'neutral'),
+                    firstMasked ? el('span', { class: 'key-mask-inline' }, firstMasked) : null,
                     el('span', { class: 'spacer' }),
                     p.sends_images
-                        ? el('span', { class: 'sends-note is-remote' }, icon('cloud', { size: 15 }), 'Images are sent to this service')
-                        : el('span', { class: 'sends-note is-local' }, icon('shield', { size: 15 }), 'Never receives your images')),
+                        ? el('span', { class: 'sends-note is-remote privacy-badge-tip' }, icon('cloud', { size: 14 }), 'Cloud', infoTip('Images are sent to this provider when used.', 'end'))
+                        : el('span', { class: 'sends-note is-local privacy-badge-tip' }, icon('shield', { size: 14 }), 'No images', infoTip('Never receives your specimen images.', 'end'))),
                 p.purpose ? el('p', { class: 'key-purpose' }, p.purpose) : null,
                 el('div', { class: 'key-links' },
-                    p.key_url ? externalLink('Get a key', p.key_url) : null,
-                    p.docs_url ? externalLink('Documentation', p.docs_url) : null),
+                    p.key_url ? externalLink('Get key', p.key_url) : null,
+                    p.docs_url ? externalLink('Docs', p.docs_url) : null),
                 fieldNodes,
                 el('div', { class: 'key-actions' },
                     el('button', { type: 'button', class: 'button', disabled: Boolean(busy), onclick: save }, busy === 'save' ? 'Saving…' : 'Save'),
                     el('button', { type: 'button', class: 'button-secondary', disabled: Boolean(busy) || !p.configured, onclick: test }, busy === 'test' ? 'Testing…' : 'Test'),
                     el('button', { type: 'button', class: 'button-secondary button-danger', disabled: Boolean(busy) || !anySaved, onclick: remove }, icon('trash', { size: 14 }), 'Remove')),
                 t ? el('div', { class: 'key-test', role: 'status' },
-                    badge(TEST_LABEL[t.status] || (t.ok ? 'Key works' : 'Test failed'), TEST_KIND[t.status] || (t.ok ? 'good' : 'bad')),
-                    el('span', null, t.message || ''),
+                    badge(TEST_LABEL[t.status] || (t.ok ? 'Working' : 'Failed'), TEST_KIND[t.status] || (t.ok ? 'good' : 'bad')),
+                    t.message ? el('span', null, t.message) : null,
                     t.tested_at ? el('span', { class: 'key-test-time' }, fmtDateTime(t.tested_at)) : null) : null);
         }
 
@@ -163,10 +166,12 @@ export async function mount(panel) {
     }
 
     replace(panel,
-        el('div', { class: 'keys-privacy' }, icon('shield', { size: 28 }),
+        el('div', { class: 'keys-privacy' }, icon('shield', { size: 22 }),
             el('div', null,
-                el('p', null, el('strong', null, 'Keys are stored only on this computer'), ', in ', el('code', null, privateFile), '.'),
-                el('p', null, 'A saved key is never shown again. To change one, paste a new key and save.'))),
+                el('p', null,
+                    el('strong', null, 'Keys stay on this computer.'),
+                    ' All keys are optional.',
+                    infoTip(`Saved locally in ${privateFile}. Saved keys aren't shown again—paste a new key to replace.`, 'start')))),
         body);
     await load();
 

@@ -81,11 +81,11 @@ function renderCpu(view, cpu) {
     const fill = view.seg('fill');
     fill.style.width = `${share(p, 100)}%`;
     fill.classList.toggle('is-high', p !== null && p >= HIGH_PERCENT);
-    view.node.setAttribute('aria-label', `Processor in use: ${pct(p)}`);
+    view.node.setAttribute('aria-label', `CPU: ${pct(p)}`);
     replace(view.box,
-        el('div', { class: 'resmon-pop-title' }, 'Processor'),
+        el('div', { class: 'resmon-pop-title' }, 'CPU'),
         rows([
-            ['In use', pct(p)],
+            ['Usage', pct(p)],
             cpu && isNum(cpu.logical_cores) ? ['Threads', String(cpu.logical_cores)] : null,
         ]));
 }
@@ -96,12 +96,12 @@ function renderRam(view, memory, short) {
     const fill = view.seg('fill');
     fill.style.width = `${share(m.used_bytes, m.total_bytes)}%`;
     fill.classList.toggle('is-high', isNum(m.percent) && m.percent >= HIGH_PERCENT);
-    view.node.setAttribute('aria-label', `Memory in use: ${mem(m.used_bytes)} of ${mem(m.total_bytes)}`);
+    view.node.setAttribute('aria-label', `RAM: ${mem(m.used_bytes)} / ${mem(m.total_bytes)}`);
     replace(view.box,
-        el('div', { class: 'resmon-pop-title' }, 'Memory'),
+        el('div', { class: 'resmon-pop-title' }, 'RAM'),
         rows([
-            ['In use', `${mem(m.used_bytes)} of ${mem(m.total_bytes)}${isNum(m.percent) ? ` (${pct(m.percent)})` : ''}`],
-            ['Available', mem(m.available_bytes)],
+            ['Used', `${memPair(m.used_bytes, m.total_bytes)}${isNum(m.percent) ? ` (${pct(m.percent)})` : ''}`],
+            ['Free', mem(m.available_bytes)],
         ]));
 }
 
@@ -130,26 +130,25 @@ function renderGpu(view, gpu, plan, short) {
     const plannedFor = Array.isArray(gpu.planned_for) ? gpu.planned_for : [];
     let warning = '';
     if (over) {
-        warning = `The selected ${plannedFor.length > 1 ? 'models need' : 'model needs'} ${mem(planned)} here, but only ${mem(free)} is free. `
-            + 'Close other programs that use this card, or choose a smaller model.';
+        warning = `Needs ${mem(planned)} (${mem(free)} free). Close other apps or pick a smaller model.`;
     }
     const note = planned > 0 && plan && plan.mode === 'exclusive' && typeof plan.note === 'string' ? plan.note : '';
 
     view.node.setAttribute('aria-label',
-        `Graphics card ${gpu.index}: load ${pct(gpu.util_percent)}, memory ${mem(used)} of ${mem(total)} in use`
-        + `${planned > 0 ? `, ${mem(planned)} planned for the selected models` : ''}${over ? ', which does not fit' : ''}`);
+        `GPU ${gpu.index}: ${pct(gpu.util_percent)}, ${mem(used)} / ${mem(total)}`
+        + `${planned > 0 ? `, ${mem(planned)} planned` : ''}${over ? ', does not fit' : ''}`);
     replace(view.box,
         el('div', { class: 'resmon-pop-title' }, `GPU ${gpu.index}`),
-        el('div', { class: 'resmon-pop-sub' }, gpu.name || 'Graphics card'),
+        el('div', { class: 'resmon-pop-sub' }, gpu.name || 'GPU'),
         rows([
             ['Load', pct(gpu.util_percent)],
-            ['Temperature', isNum(gpu.temperature_c) ? `${Math.round(gpu.temperature_c)} °C` : DASH],
-            [sharedMemory ? 'Memory in use (shared with the computer)' : 'Memory in use', `${mem(used)} of ${mem(total)}`],
-            ['VoucherVisionLocal engine', mem(gpu.engine_bytes), { key: 'engine', sub: true }],
-            ['Other programs', mem(gpu.other_bytes), { key: 'other', sub: true }],
-            ['Planned for the selected models', planned > 0 ? mem(planned) : 'None', { key: 'planned', sub: true }],
+            ['Temp', isNum(gpu.temperature_c) ? `${Math.round(gpu.temperature_c)} °C` : DASH],
+            [sharedMemory ? 'Shared memory' : 'Memory', memPair(used, total)],
+            ['This app', mem(gpu.engine_bytes), { key: 'engine', sub: true }],
+            ['Other apps', mem(gpu.other_bytes), { key: 'other', sub: true }],
+            ['Selected models', planned > 0 ? mem(planned) : 'None', { key: 'planned', sub: true }],
             ...plannedFor.map((p) => [p.label || p.model_id, mem(p.bytes), { sub: true, plain: true }]),
-            ['Free now', mem(free), { key: 'free', sub: true }],
+            ['Free', mem(free), { key: 'free', sub: true }],
         ]),
         el('p', { class: 'resmon-pop-warn', role: 'note' }, warning),
         el('p', { class: 'resmon-pop-note' }, note));

@@ -3,7 +3,7 @@
 
 import { api, describeError, inlineError, toast, toastError } from '../api.js';
 import {
-    el, icon, clear, replace, stateBox, prefs, openModal, copyText, downloadBlob, downloadText,
+    el, icon, infoTip, clear, replace, stateBox, prefs, openModal, copyText, downloadBlob, downloadText,
     base64ToBlob, externalLink, fmtClock,
 } from '../dom.js';
 import { on, emit, feature, featureNote, loadSettings, updateCachedSettings, gotoTab, plainReason } from '../state.js';
@@ -23,9 +23,9 @@ const URL_NAMES_PER_REQUEST = 5000; // the most URLs POST /v1/url-names takes at
 const IMAGE_NAME_RE = /\.(jpe?g|png|tiff?|webp|bmp|gif|heic|heif|jp2)$/i;
 const BASE64_RE = /^[A-Za-z0-9+/=\s]+$/;
 const EXAMPLE_URLS = [
-    ['Jouvea pilosa (handwritten determination)', 'https://quod.lib.umich.edu/cgi/i/image/api/image/herb00ic:1122841:MICH-V-1122841/full/res:0/0/native.jpg'],
-    ['Quercus oxyodon (printed text)', 'https://medialib.naturalis.nl/file/id/L.3800382/format/large'],
-    ['Liriodendron tulipifera (handwritten text)', 'https://quod.lib.umich.edu/cgi/i/image/api/image/herb00ic:1500329:MICH-V-1500329/full/res:0/0/native.jpg'],
+    ['Jouvea pilosa', 'https://quod.lib.umich.edu/cgi/i/image/api/image/herb00ic:1122841:MICH-V-1122841/full/res:0/0/native.jpg'],
+    ['Quercus oxyodon', 'https://medialib.naturalis.nl/file/id/L.3800382/format/large'],
+    ['Liriodendron tulipifera', 'https://quod.lib.umich.edu/cgi/i/image/api/image/herb00ic:1500329:MICH-V-1500329/full/res:0/0/native.jpg'],
 ];
 
 function step(number, title, ...body) {
@@ -123,23 +123,27 @@ export async function mount(panel) {
 
     // ------------------------------------------------------------ step 1: models
     const pickers = {
-        ocr: { title: 'OCR Engines', input: 'checkbox', list: el('div', { class: 'model-list' }), thinking: null },
-        parse: { title: 'Model for Parsing Label Text', input: 'radio', list: el('div', { class: 'model-list' }), thinking: null },
+        ocr: { title: 'OCR', tip: 'Reads text from specimen images (up to 4 models).', input: 'checkbox', list: el('div', { class: 'model-list' }), thinking: null },
+        parse: { title: 'Parsing', tip: 'Extracts structured fields from the OCR text.', input: 'radio', list: el('div', { class: 'model-list' }), thinking: null },
     };
     for (const [role, p] of Object.entries(pickers)) {
         const select = el('select', { id: `${role}ThinkingLevel`, onchange: () => prefs.set(`thinking.${role}`, select.value) });
-        p.thinking = { select, node: el('div', { class: 'thinking-level-control', hidden: true }, el('label', { for: select.id }, 'Thinking level'), select) };
+        p.thinking = { select, node: el('div', { class: 'thinking-level-control', hidden: true }, el('label', { for: select.id }, 'Thinking'), select) };
         // The models chosen now, shown at the right of the card title (easy to spot two OCR models).
         p.chosen = el('span', { class: 'picker-chosen', 'aria-live': 'polite' });
-        p.card = el('div', { class: 'settings-card' }, el('h3', { class: 'picker-title' }, el('span', null, p.title), p.chosen), p.thinking.node, p.list);
+        p.card = el('div', { class: 'settings-card' },
+            el('h3', { class: 'picker-title' },
+                el('span', { class: 'picker-title-main' }, p.title, infoTip(p.tip, 'start')),
+                p.chosen),
+            p.thinking.node, p.list);
     }
     // Per-step model settings (reasoning, output length, ...) under each card's model list.
     const genSettings = mountGenSettings({ ocr: pickers.ocr.card, parse: pickers.parse.card });
-    const ocrOnly = modeToggle({ id: 'ocrOnly', label: 'OCR Only Mode', hint: '(skips parsing)' });
-    const notebookMode = modeToggle({ id: 'notebookMode', label: 'Notebook Mode', hint: '(skips the label collage, produces Markdown)' });
-    const skipCollage = modeToggle({ id: 'skipLabelCollage', label: 'Skip Label Collage', hint: '(uses the uploaded image directly)' });
+    const ocrOnly = modeToggle({ id: 'ocrOnly', label: 'OCR only', tip: 'Transcribe text only; skip field parsing.' });
+    const notebookMode = modeToggle({ id: 'notebookMode', label: 'Notebook mode', tip: 'Output Markdown directly without cropping labels.' });
+    const skipCollage = modeToggle({ id: 'skipLabelCollage', label: 'Skip label crop', tip: 'Send the full image instead of cropping labels first.' });
     const modelWarning = el('div', { class: 'model-warning', 'aria-live': 'polite' });
-    const step1 = step(1, 'Model & Mode Selection',
+    const step1 = step(1, 'Models',
         el('div', { class: 'ocr-llm-row' }, pickers.ocr.card, pickers.parse.card),
         modelWarning,
         el('div', { class: 'mode-toggles' }, ocrOnly.node, notebookMode.node, skipCollage.node));
@@ -148,7 +152,7 @@ export async function mount(panel) {
     function setListsExpanded(on) {
         step1.node.classList.toggle('lists-expanded', on);
         expandLists.setAttribute('aria-pressed', String(on));
-        const label = on ? 'Shrink the model lists back to a scrolling box' : 'Expand the model lists so they do not scroll';
+        const label = on ? 'Collapse lists' : 'Expand lists';
         expandLists.title = label;
         expandLists.setAttribute('aria-label', label);
     }
@@ -160,7 +164,7 @@ export async function mount(panel) {
     setListsExpanded(Boolean(prefs.get('modelListsExpanded', false)));
     step1.actions.appendChild(expandLists);
     step1.actions.appendChild(el('button', { type: 'button', class: 'button-secondary button-small', onclick: () => gotoTab('models') },
-        icon('download', { size: 14 }), 'Get More Models Here'));
+        icon('download', { size: 14 }), 'Get models'));
 
     const isLocal = (id) => typeof id === 'string' && id.startsWith('local:');
     const needsParse = () => !ocrOnly.input.checked && !notebookMode.input.checked;
@@ -178,7 +182,8 @@ export async function mount(panel) {
         const takeTurns = used.all.length > 1 && enginePlan && enginePlan.mode === 'exclusive';
         replace(modelWarning, takeTurns
             ? el('div', { class: 'notice notice-warn' }, icon('alert', { size: 18 }),
-                el('span', null, 'These models do not fit in graphics memory together, so one is loaded at a time. Batches run all OCR first, then all parsing. A single image loads each model in turn, which takes longer.'))
+                el('span', null, 'Models will load one at a time.',
+                    infoTip('Not enough GPU memory to keep both loaded. Batches run all OCR first, then parsing.')))
             : null);
     }
 
@@ -209,11 +214,13 @@ export async function mount(panel) {
                 item.value.textContent = item.slider.value;
             }
             const over = limited && Number(item.slider.value) > cap;
-            const who = hosted && cap === hosted
-                ? `OpenRouter runs ${cap} request${cap === 1 ? '' : 's'} at a time (set on the Models tab)`
-                : `The local engine works on ${cap} image${cap === 1 ? '' : 's'} at a time`;
             item.note.hidden = !limited;
-            item.note.textContent = limited ? `${who}${over ? '; the extra requests wait their turn' : ''}.` : '';
+            if (limited) {
+                const who = hosted && cap === hosted ? `OpenRouter limit: ${cap}` : `Engine limit: ${cap}`;
+                replace(item.note, who, infoTip(over ? 'Extra requests wait automatically.' : 'Maximum concurrent requests for the current model.'));
+            } else {
+                clear(item.note);
+            }
         }
     }
 
@@ -344,13 +351,13 @@ export async function mount(panel) {
         p.chosen.classList.toggle('is-many', ids.length > 1);
         p.chosen.title = '';
         if (!ids.length) {
-            replace(p.chosen, 'None selected');
+            replace(p.chosen, 'None');
             return;
         }
         // Parsing has exactly one model, so there is nothing to deselect there.
         const removable = role === 'ocr' && ids.length > 1;
         replace(p.chosen, ids.map((id, i) => [i ? ', ' : null, removable
-            ? el('button', { type: 'button', class: 'picker-chosen-name', title: `Deselect ${short(id)}`, 'aria-label': `Deselect ${short(id)}`,
+            ? el('button', { type: 'button', class: 'picker-chosen-name', title: `Remove ${short(id)}`, 'aria-label': `Remove ${short(id)}`,
                 onclick: () => {
                     selection.ocr = selection.ocr.filter((x) => x !== id);
                     selectionChanged();
@@ -366,25 +373,25 @@ export async function mount(panel) {
         clear(p.list);
         const families = familiesFor(role);
         if (!families.length) {
-            p.list.appendChild(stateBox('empty', 'No models are downloaded yet', 'Use Get More Models Here to download one.', { compact: true }));
+            p.list.appendChild(stateBox('empty', 'No models yet', 'Click Get models to add one.', { compact: true }));
             return;
         }
         const isChecked = (item) => (role === 'ocr' ? selection.ocr.includes(item.model_id) : selection.parse === item.model_id);
         for (const f of families) {
             const key = `${role}:${f.id}`;
             const open = familyOpen.has(key) ? familyOpen.get(key) : f.primary || f.demo;
-            const reasons = new Set(f.items.filter((i) => !i.runnable).map((i) => plainReason(i.unavailable_reason) || 'Not available'));
+            const reasons = new Set(f.items.filter((i) => !i.runnable).map((i) => plainReason(i.unavailable_reason) || 'Unavailable'));
             // One reason for every unavailable model in the family is said once, not on each line.
             const common = reasons.size === 1 ? [...reasons][0] : null;
             const ready = f.items.filter((i) => i.runnable);
             const chosen = f.items.filter((i) => isChecked(i) && i.runnable);
             const summaryNote = chosen.length
-                ? `Selected: ${chosen.map((i) => i.label).join(', ')}`
-                : (ready.length ? `${ready.length} ready` : (f.reason || common || 'Not available'));
+                ? chosen.map((i) => i.label).join(', ')
+                : (ready.length ? `${ready.length} ready` : (f.reason || common || 'Unavailable'));
             const details = el('details', { class: ['model-family', f.api ? 'is-api' : ''], open,
                 ontoggle: () => familyOpen.set(key, details.open) },
             el('summary', { class: 'model-family-summary' },
-                el('span', { class: 'model-family-name' }, f.api ? `${f.label} [API]` : f.label),
+                el('span', { class: 'model-family-name' }, f.api ? `${f.label} · Cloud` : f.label),
                 el('span', { class: ['model-family-note', chosen.length ? 'is-selected' : ''] }, summaryNote)));
             // Set through the style object: the page's security policy refuses style="" attributes.
             if (f.color && /^#[0-9a-fA-F]{6}$/.test(f.color)) details.style.setProperty('--family-color', f.color);
@@ -482,12 +489,14 @@ export async function mount(panel) {
     const elevBox = el('input', { type: 'checkbox', id: 'includeCop90' });
     const wfoNote = el('p', { class: 'option-note', id: 'includeWfoNote', hidden: true });
     const elevNote = el('p', { class: 'option-note', id: 'includeCop90Note', hidden: true });
-    const wfoCard = el('div', { class: 'option-card' }, el('h4', null, 'World Flora Online (Taxonomic Validation)'),
+    const wfoCard = el('div', { class: 'option-card' },
+        el('h4', null, 'World Flora Online', infoTip('Validates species names against World Flora Online.')),
         el('label', { for: 'includeWfo' }, wfoBox, 'Include WFO validation'), wfoNote);
-    const elevCard = el('div', { class: 'option-card' }, el('h4', null, 'Copernicus GLO-90 Elevation'),
+    const elevCard = el('div', { class: 'option-card' },
+        el('h4', null, 'Copernicus GLO-90 Elevation', infoTip('Estimates elevation from coordinates using Copernicus GLO-90.')),
         el('label', { for: 'includeCop90' }, elevBox, 'Derive elevation from coordinates'), elevNote);
     const enrichStatus = el('div');
-    const step2 = step(2, 'Data Enrichment', el('div', { class: 'options-row' }, wfoCard, elevCard), enrichStatus);
+    const step2 = step(2, 'Enrichment', el('div', { class: 'options-row' }, wfoCard, elevCard), enrichStatus);
     let wfoSource = 'vvgo';
 
     function setupEnrichmentToggle(box, card, note, featureName) {
@@ -534,10 +543,10 @@ export async function mount(panel) {
 
     // ------------------------------------------------------------ step 3: prompt
     const promptCurrent = el('span', { class: 'prompt-current-name' }, '—');
-    const promptDetails = el('button', { type: 'button', class: 'link-button', hidden: true }, 'View details');
-    const promptButtons = el('div', { class: 'template-buttons-container', role: 'group', 'aria-label': 'Prompt templates' });
-    const step3 = step(3, 'Prompt Template',
-        el('div', { class: 'prompt-current' }, el('span', null, 'Selected:'), promptCurrent, promptDetails),
+    const promptDetails = el('button', { type: 'button', class: 'link-button', hidden: true }, 'Details');
+    const promptButtons = el('div', { class: 'template-buttons-container', role: 'group', 'aria-label': 'Prompts' });
+    const step3 = step(3, 'Prompt',
+        el('div', { class: 'prompt-current' }, promptCurrent, promptDetails),
         promptButtons);
     step3.actions.appendChild(el('button', { type: 'button', class: 'button-secondary button-small', onclick: () => loadPrompts() }, icon('refresh', { size: 14 }), 'Refresh'));
 
@@ -548,7 +557,7 @@ export async function mount(panel) {
     function renderPrompts() {
         clear(promptButtons);
         if (!prompts.length) {
-            promptButtons.appendChild(stateBox('empty', 'No prompt templates found', null, { compact: true }));
+            promptButtons.appendChild(stateBox('empty', 'No prompts found', null, { compact: true }));
         }
         for (const p of prompts) {
             const user = p.source === 'user';
@@ -557,12 +566,12 @@ export async function mount(panel) {
                 class: ['template-button', user ? 'user-generated' : '', p.name === promptName ? 'selected' : ''],
                 'aria-pressed': String(p.name === promptName),
                 disabled: p.valid === false,
-                title: p.valid === false ? (p.error || 'This prompt is not valid') : `${p.name}${user ? ' (yours)' : ''}`,
+                title: p.valid === false ? (p.error || 'Invalid prompt') : `${p.name}${user ? ' (custom)' : ''}`,
                 onclick: () => setPrompt(p.name),
             }, stem(p.name)));
         }
         const sel = selectedPrompt();
-        promptCurrent.textContent = sel ? sel.name : 'None';
+        promptCurrent.textContent = sel ? stem(sel.name) : 'None';
         promptDetails.hidden = !sel;
     }
 
@@ -635,14 +644,14 @@ export async function mount(panel) {
 
     // ------------------------------------------------------------ step 5: results
     const historySelect = el('select', { id: 'resultHistorySelect', onchange: () => showResult(history[Number(historySelect.value)]) });
-    const historyBar = el('div', { class: 'result-history-bar', hidden: true }, el('label', { for: 'resultHistorySelect' }, 'Previous results:'), historySelect);
+    const historyBar = el('div', { class: 'result-history-bar', hidden: true }, el('label', { for: 'resultHistorySelect' }, 'History:'), historySelect);
     const resultsArea = el('div', { class: 'results', 'aria-live': 'polite' },
-        stateBox('empty', 'No results yet', 'Run an image in step 4 to see its record here.'));
+        stateBox('empty', 'No results yet'));
     const coordStatus = el('div', { class: 'coord-status invalid' });
     const mapHolder = el('div', { class: 'map-holder' });
     const mapSection = el('div', { class: 'global-map-section', hidden: true }, coordStatus, mapHolder);
     const map = createMap(mapHolder);
-    const step5 = step(5, 'VoucherVision Results', historyBar, resultsArea, mapSection);
+    const step5 = step(5, 'Results', historyBar, resultsArea, mapSection);
 
     function fieldTable(obj) {
         const table = el('table', { class: 'field-table' });
@@ -655,32 +664,32 @@ export async function mount(panel) {
     }
 
     function section(title, body) {
-        return el('div', { class: 'formatted-section' }, el('h4', null, title), body);
+        return el('div', { class: 'formatted-section' }, title ? el('h4', null, title) : null, body);
     }
 
     function formattedPanel(data) {
         const out = [];
-        if (hasRecord(data)) out.push(section('Parsed Label Fields', fieldTable(data.formatted_json)));
+        if (hasRecord(data)) out.push(section(null, fieldTable(data.formatted_json)));
         if (typeof data.formatted_md === 'string' && data.formatted_md.trim()) {
-            out.push(section('Formatted Markdown', el('pre', { class: 'formatted-value' }, data.formatted_md)));
+            out.push(section('Markdown', el('pre', { class: 'formatted-value' }, data.formatted_md)));
         }
-        return out.length ? out : el('p', { class: 'help-text' }, 'This result has no parsed record.');
+        return out.length ? out : el('p', { class: 'help-text' }, 'None.');
     }
 
     function ocrPanel(data) {
         const text = typeof data.ocr === 'string' ? data.ocr : (data.ocr ? JSON.stringify(data.ocr, null, 2) : '');
-        return text.trim() ? el('pre', { class: 'formatted-value' }, text) : el('p', { class: 'help-text' }, 'This result has no OCR text.');
+        return text.trim() ? el('pre', { class: 'formatted-value' }, text) : el('p', { class: 'help-text' }, 'None.');
     }
 
     function enrichmentPanel(data) {
         const out = [];
         if (data.WFO_info && typeof data.WFO_info === 'object' && Object.keys(data.WFO_info).length) {
-            out.push(section('WFO Validation', fieldTable(data.WFO_info)));
+            out.push(section('World Flora Online', fieldTable(data.WFO_info)));
         }
         if (data.COP90_elevation_m !== undefined && data.COP90_elevation_m !== null && data.COP90_elevation_m !== '') {
-            out.push(section('COP90 Elevation', el('p', null, el('strong', null, `${data.COP90_elevation_m} m`))));
+            out.push(section('Elevation', el('p', null, el('strong', null, `${data.COP90_elevation_m} m`))));
         }
-        return out.length ? out : el('p', { class: 'help-text' }, 'This result has no enrichment data.');
+        return out.length ? out : el('p', { class: 'help-text' }, 'None.');
     }
 
     function usagePanel(data) {
@@ -694,9 +703,9 @@ export async function mount(panel) {
         }
         const p = data.parsing_info;
         if (p && typeof p === 'object' && p.model) rows.push(['Parsing', p.model, p.input, p.output, p.thinking_tokens, p.total_cost]);
-        if (!rows.length) return el('p', { class: 'help-text' }, 'This result has no usage data.');
+        if (!rows.length) return el('p', { class: 'help-text' }, 'None.');
         return el('div', { class: 'table-wrap' }, el('table', { class: 'data' },
-            el('thead', null, el('tr', null, ['Stage', 'Model', 'Tokens in', 'Tokens out', 'Thinking tokens', 'Cost (USD)'].map((t) => el('th', { scope: 'col' }, t)))),
+            el('thead', null, el('tr', null, ['Stage', 'Model', 'In', 'Out', 'Thinking', 'Cost'].map((t) => el('th', { scope: 'col' }, t)))),
             el('tbody', null, rows.map((r) => el('tr', null, el('td', null, r[0]), el('td', null, r[1]), el('td', null, num(r[2])), el('td', null, num(r[3])), el('td', null, num(r[4])), el('td', null, cost(r[5])))))));
     }
 
@@ -721,32 +730,32 @@ export async function mount(panel) {
         const { data, base } = item;
         const md = typeof data.formatted_md === 'string' ? data.formatted_md.trim() : '';
         const controls = el('div', { class: 'json-controls' },
-            el('button', { type: 'button', class: 'button-secondary', onclick: async () => toast((await copyText(JSON.stringify(data, null, 2))) ? 'JSON copied.' : 'Copy failed.', 'info') }, 'Copy JSON'),
-            el('button', { type: 'button', class: 'button-secondary', onclick: () => downloadText(JSON.stringify(data, null, 2), `${base}.json`, 'application/json') }, icon('download', { size: 14 }), 'Download JSON'),
-            md ? el('button', { type: 'button', class: 'button-secondary', onclick: () => downloadText(md, `${base}.md`, 'text/markdown;charset=utf-8') }, icon('download', { size: 14 }), 'Download Markdown') : null);
+            el('button', { type: 'button', class: 'button-secondary', onclick: async () => toast((await copyText(JSON.stringify(data, null, 2))) ? 'Copied.' : 'Copy failed.', 'info') }, 'Copy'),
+            el('button', { type: 'button', class: 'button-secondary', onclick: () => downloadText(JSON.stringify(data, null, 2), `${base}.json`, 'application/json') }, icon('download', { size: 14 }), 'JSON'),
+            md ? el('button', { type: 'button', class: 'button-secondary', onclick: () => downloadText(md, `${base}.md`, 'text/markdown;charset=utf-8') }, icon('download', { size: 14 }), 'Markdown') : null);
         const tabs = tabStrip({
             label: 'Result views', className: 'result-tab', listClass: 'result-tabs', panelClass: 'result-tab-content',
             tabs: [
-                { id: 'formatted', label: 'Formatted', panel: el('div', null, formattedPanel(data)) },
-                { id: 'ocr', label: 'OCR Text', panel: el('div', null, ocrPanel(data)) },
-                { id: 'enrichment', label: 'Data Enrichment', panel: el('div', null, enrichmentPanel(data)) },
+                { id: 'formatted', label: 'Fields', panel: el('div', null, formattedPanel(data)) },
+                { id: 'ocr', label: 'OCR', panel: el('div', null, ocrPanel(data)) },
+                { id: 'enrichment', label: 'Enrichment', panel: el('div', null, enrichmentPanel(data)) },
                 { id: 'usage', label: 'Usage', panel: el('div', null, usagePanel(data)) },
-                { id: 'raw', label: 'Full Response', panel: el('pre', { class: 'json-content' }, displayJson(data)) },
+                { id: 'raw', label: 'Raw', panel: el('pre', { class: 'json-content' }, displayJson(data)) },
             ],
         });
         const collage = collageOf(data);
-        const imageBox = el('div', { class: 'image-result-container' }, el('h4', null, 'Text Collage'));
+        const imageBox = el('div', { class: 'image-result-container' }, el('h4', null, 'Label crop'));
         if (collage) {
             const src = `data:${collage.type};base64,${collage.b64.replace(/\s+/g, '')}`;
             imageBox.append(
-                el('button', { type: 'button', class: 'image-button', 'aria-label': 'Enlarge the text collage', onclick: () => zoomImage(src, 'Text Collage') },
-                    el('img', { class: 'processed-image', src, alt: 'Text collage of the detected labels' })),
+                el('button', { type: 'button', class: 'image-button', 'aria-label': 'Enlarge image', onclick: () => zoomImage(src, 'Label crop') },
+                    el('img', { class: 'processed-image', src, alt: 'Label crop' })),
                 el('div', { class: 'image-actions' }, el('button', {
                     type: 'button', class: 'button-secondary',
                     onclick: () => downloadBlob(base64ToBlob(collage.b64.replace(/\s+/g, ''), collage.type), `${base}_collage.${collage.ext}`),
-                }, icon('download', { size: 14 }), 'Download Image')));
+                }, icon('download', { size: 14 }), 'Download')));
         } else {
-            imageBox.appendChild(el('p', { class: 'no-image-msg' }, 'No text collage in this result.'));
+            imageBox.appendChild(el('p', { class: 'no-image-msg' }, 'None'));
         }
         replace(resultsArea,
             data.engine_notice ? el('div', { class: 'notice notice-demo', role: 'alert' }, icon('alert', { size: 20 }), el('span', null, String(data.engine_notice))) : null,
@@ -759,12 +768,12 @@ export async function mount(panel) {
         coordStatus.className = `coord-status ${coords ? 'valid' : 'invalid'}`;
         if (coords) {
             const text = `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}`;
-            replace(coordStatus, icon('pin', { size: 16 }), el('span', null, 'Coordinates: ', el('span', { class: 'coord-text' }, text)),
-                el('button', { type: 'button', class: 'link-button', onclick: async () => toast((await copyText(text)) ? 'Coordinates copied.' : 'Copy failed.', 'info') }, 'Copy'),
-                externalLink('Open in OpenStreetMap', `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.lon}#map=10/${coords.lat}/${coords.lon}`));
+            replace(coordStatus, icon('pin', { size: 16 }), el('span', { class: 'coord-text' }, text),
+                el('button', { type: 'button', class: 'link-button', onclick: async () => toast((await copyText(text)) ? 'Copied.' : 'Copy failed.', 'info') }, 'Copy'),
+                externalLink('OpenStreetMap', `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.lon}#map=10/${coords.lat}/${coords.lon}`));
             map.setPoint(coords.lat, coords.lon, data.formatted_json.scientificName || text);
         } else {
-            replace(coordStatus, 'No valid coordinates in this result.');
+            replace(coordStatus, 'No coordinates');
             map.clearPoint();
         }
     }
@@ -921,14 +930,14 @@ export async function mount(panel) {
     }
 
     // ------------------------------------------------------------ step 4: inputs
-    const previewArea = el('div', { class: 'step4-preview-area' }, el('p', { class: 'no-image-msg' }, 'No image selected'));
+    const previewArea = el('div', { class: 'step4-preview-area' }, el('p', { class: 'no-image-msg' }, 'No image'));
     let previewUrl = null;
 
     function showPreview(file) {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
         if (!file) {
-            replace(previewArea, el('p', { class: 'no-image-msg' }, 'No image selected'));
+            replace(previewArea, el('p', { class: 'no-image-msg' }, 'No image'));
             return;
         }
         if (!(file.type || '').startsWith('image/')) {
@@ -937,17 +946,17 @@ export async function mount(panel) {
         }
         previewUrl = URL.createObjectURL(file);
         const img = el('img', { src: previewUrl, alt: `Preview of ${file.name}`, onclick: () => zoomImage(previewUrl, file.name) });
-        img.addEventListener('error', () => replace(previewArea, el('p', { class: 'no-image-msg' }, `${file.name} (no preview for this file type)`)));
+        img.addEventListener('error', () => replace(previewArea, el('p', { class: 'no-image-msg' }, `${file.name} (no preview)`)));
         replace(previewArea, img);
     }
 
     // Image URL
     const urlInput = el('input', { type: 'url', id: 'imageUrl', placeholder: 'https://…', 'aria-label': 'Image URL', autocomplete: 'off', spellcheck: 'false' });
     let namingUrl = false;
-    const urlRun = runButton('Run VoucherVision', async () => {
+    const urlRun = runButton('Run', async () => {
         const url = urlInput.value.trim();
         if (!isHttpUrl(url)) {
-            toast('Enter an image URL that starts with http:// or https://.', 'warning');
+            toast('Enter a valid image URL.', 'warning');
             urlInput.focus();
             return;
         }
@@ -968,18 +977,18 @@ export async function mount(panel) {
     });
     const urlPanel = el('div', null,
         el('div', { class: 'form-group' }, urlInput,
-            el('div', { class: 'example-urls' }, el('span', null, 'Examples:'),
+            el('div', { class: 'example-urls' }, el('span', null, 'Try:'),
                 EXAMPLE_URLS.map(([name, url]) => el('button', { type: 'button', class: 'link-button', onclick: () => { urlInput.value = url; } }, name)))),
         urlRun);
 
     // File upload
     const fileInput = el('input', { type: 'file', id: 'fileInput', accept: 'image/*,.heic,.heif,.tif,.tiff', onchange: () => showPreview(fileInput.files[0]) });
     const filePanel = el('div', null,
-        el('div', { class: 'form-group' }, el('label', { for: 'fileInput' }, 'Select an image file:'), fileInput),
-        runButton('Run VoucherVision', () => {
+        el('div', { class: 'form-group' }, fileInput),
+        runButton('Run', () => {
             const file = fileInput.files[0];
             if (!file) {
-                toast('Select an image file first.', 'warning');
+                toast('Select an image first.', 'warning');
                 return;
             }
             runSingle({ file }, file.name, NO_TIMEOUT);
@@ -988,12 +997,11 @@ export async function mount(panel) {
     // PDF
     const pdfInput = el('input', { type: 'file', id: 'pdfInput', accept: '.pdf,application/pdf', onchange: () => showPreview(pdfInput.files[0]) });
     const pdfPanel = el('div', null,
-        el('div', { class: 'form-group' }, el('label', { for: 'pdfInput' }, 'Select a PDF file:'), pdfInput,
-            el('p', { class: 'help-text' }, 'Each page is processed as one image, one after another.')),
-        runButton('Run VoucherVision', () => {
+        el('div', { class: 'form-group' }, el('label', { for: 'pdfInput' }, 'PDF file', infoTip('Each page runs as a separate image.')), pdfInput),
+        runButton('Run', () => {
             const file = pdfInput.files[0];
             if (!file) {
-                toast('Select a PDF file first.', 'warning');
+                toast('Select a PDF first.', 'warning');
                 return;
             }
             runSingle({ file }, file.name, NO_TIMEOUT);
@@ -1029,9 +1037,9 @@ export async function mount(panel) {
         return {
             slider, saveCsv, bar, text, stage, count, downloads, stop, progress, results,
             controls: (run) => [
-                el('div', { class: 'form-group' }, el('label', { class: 'check-row', for: saveCsv.id }, saveCsv, 'Save results to CSV when finished')),
+                el('div', { class: 'form-group' }, el('label', { class: 'check-row', for: saveCsv.id }, saveCsv, 'Auto-save CSV')),
                 el('div', { class: 'batch-controls' },
-                    el('div', { class: 'concurrency-selector' }, el('label', { for: slider.id }, 'Concurrent requests:'), slider, value),
+                    el('div', { class: 'concurrency-selector' }, el('label', { for: slider.id }, 'Parallel:'), slider, value),
                     run),
                 note,
                 progress, results,
@@ -1280,13 +1288,12 @@ export async function mount(panel) {
     urlListInput.addEventListener('change', readUrlList);
     urlColumn.addEventListener('change', readUrlList);
     const batchUrlPanel = el('div', null,
-        el('div', { class: 'form-group' }, el('label', { for: 'batchUrlFileInput' }, 'Upload URL list:'),
-            el('p', { class: 'help-text' }, 'A text file (.txt) with one URL per line, or a CSV file (.csv) with the URLs in one column.'),
+        el('div', { class: 'form-group' }, el('label', { for: 'batchUrlFileInput' }, 'URL file (.txt or .csv)', infoTip('One URL per line (.txt), or a column of URLs (.csv).')),
             urlListInput, urlListPreview),
-        el('div', { class: 'form-group' }, el('label', { for: 'csvUrlColumn' }, 'CSV column that holds the URLs:'), urlColumn),
-        urlBatch.controls(runButton('Run VoucherVision', () => {
+        el('div', { class: 'form-group' }, el('label', { for: 'csvUrlColumn' }, 'CSV URL column'), urlColumn),
+        urlBatch.controls(runButton('Run', () => {
             if (!urlItems.length) {
-                toast('Choose a .txt or .csv file with image URLs first.', 'warning');
+                toast('Select a URL file first.', 'warning');
                 return;
             }
             runBatch(urlItems, urlBatch, 'urls');
@@ -1331,7 +1338,7 @@ export async function mount(panel) {
     }
 
     const dropZone = el('div', { class: 'folder-drop-zone', id: 'imageFolderDropZone' },
-        el('p', null, 'Drop a folder or image files here, or choose a folder:'), folderInput, folderList);
+        el('p', null, 'Drop a folder or images here'), folderInput, folderList);
     folderInput.addEventListener('change', () => setFolderFiles([...folderInput.files]));
     for (const name of ['dragenter', 'dragover']) {
         dropZone.addEventListener(name, (ev) => {
@@ -1348,9 +1355,9 @@ export async function mount(panel) {
         setFolderFiles(files);
     });
     const batchFolderPanel = el('div', null, dropZone,
-        folderBatch.controls(runButton('Run VoucherVision', () => {
+        folderBatch.controls(runButton('Run', () => {
             if (!folderFiles.length) {
-                toast('Choose a folder with images first.', 'warning');
+                toast('Select a folder first.', 'warning');
                 return;
             }
             runBatch(folderFiles.map((file) => ({ name: file.name, fileName: file.name, source: file.webkitRelativePath || file.name, file })), folderBatch, 'folder');
@@ -1361,17 +1368,17 @@ export async function mount(panel) {
         initial: prefs.get('inputTab', 'url'),
         onChange: (id) => prefs.set('inputTab', id),
         tabs: [
-            { id: 'url', label: 'Image URL', panel: urlPanel },
-            { id: 'file', label: 'File Upload', panel: filePanel },
-            { id: 'batchUrls', label: 'Batch URLs', panel: batchUrlPanel },
-            { id: 'batchFolder', label: 'Batch Folder', panel: batchFolderPanel },
+            { id: 'url', label: 'URL', panel: urlPanel },
+            { id: 'file', label: 'Image', panel: filePanel },
+            { id: 'batchUrls', label: 'URL list', panel: batchUrlPanel },
+            { id: 'batchFolder', label: 'Folder', panel: batchFolderPanel },
             { id: 'pdf', label: 'PDF', panel: pdfPanel },
         ],
     });
-    const step4 = step(4, 'Process Images',
+    const step4 = step(4, 'Input',
         el('div', { class: 'step4-split' },
             el('div', { class: 'step4-left' }, inputTabs.list, inputTabs.panels),
-            el('div', { class: 'step4-right' }, el('h4', null, 'Image Preview'), previewArea)));
+            el('div', { class: 'step4-right' }, el('h4', null, 'Preview'), previewArea)));
 
     // ------------------------------------------------------------ assemble
     replace(panel, step1.node, step2.node, step3.node, step4.node, step5.node);

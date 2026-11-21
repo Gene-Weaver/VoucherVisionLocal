@@ -296,6 +296,19 @@ export function badge(text, kind = 'neutral', { title = null } = {}) {
     return el('span', { class: `badge badge-${kind}`, title }, text);
 }
 
+/** Small (i) hover/focus tooltip icon. Returns null if text is empty. */
+export function infoTip(text, align = null) {
+    if (!text) return null;
+    return el('span', {
+        class: 'info-tip',
+        tabindex: '0',
+        role: 'img',
+        'aria-label': text,
+        'data-tip': text,
+        'data-tip-align': align,
+    }, icon('info', { size: 14 }));
+}
+
 /** Simple label/value definition list from [[label, value], ...]; value may be a Node. */
 export function defList(rows, className = 'kv') {
     const dl = el('dl', { class: className });

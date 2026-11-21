@@ -39,13 +39,10 @@ version: 1
 
 providers:
   - id: vvgo
-    label: VoucherVisionGO account
+    label: VoucherVisionGO
     role: enrichment
     kind: vvgo
-    purpose: >-
-      Lets VoucherVisionLocal use the data-enrichment helpers hosted by
-      VoucherVisionGO: World Flora Online name checks and elevation lookups.
-      Only the parsed text needed for the lookup is sent, never your images.
+    purpose: World Flora Online taxonomy and elevation lookups.
     sends_images: false
     optional: true
     base_url: https://vouchervision-go-738307415303.us-central1.run.app
@@ -54,7 +51,7 @@ providers:
     fields:
       - name: api_key
         label: VoucherVisionGO API key
-        placeholder: Paste your VoucherVisionGO API key
+        placeholder: Paste API key…
     test:
       method: GET
       url: "{base_url}/auth-check"
@@ -69,9 +66,7 @@ providers:
     brand_color: '#4796E3'
     role: model_provider
     kind: gemini
-    purpose: >-
-      Runs OCR and label parsing on Google's Gemini models using your own
-      Google AI Studio key. Usage is billed by Google to your account.
+    purpose: ""
     sends_images: true
     optional: true
     base_url: https://generativelanguage.googleapis.com/v1beta
@@ -80,7 +75,7 @@ providers:
     fields:
       - name: api_key
         label: Gemini API key
-        placeholder: Paste your Google AI Studio key
+        placeholder: AIza…
     test:
       method: GET
       url: "{base_url}/models"
@@ -99,9 +94,7 @@ providers:
     brand_color: '#D97757'
     role: model_provider
     kind: anthropic
-    purpose: >-
-      Runs OCR and label parsing on Anthropic's Claude models using your own
-      Anthropic API key. Usage is billed by Anthropic to your account.
+    purpose: ""
     sends_images: true
     optional: true
     base_url: https://api.anthropic.com/v1
@@ -110,7 +103,7 @@ providers:
     fields:
       - name: api_key
         label: Anthropic API key
-        placeholder: Paste your Anthropic API key
+        placeholder: sk-ant-…
     test:
       method: GET
       url: "{base_url}/models"
@@ -132,9 +125,7 @@ providers:
     brand_color: '#10A37F'
     role: model_provider
     kind: openai_compat
-    purpose: >-
-      Runs OCR and label parsing on OpenAI models using your own OpenAI API
-      key. Usage is billed by OpenAI to your account.
+    purpose: ""
     sends_images: true
     optional: true
     base_url: https://api.openai.com/v1
@@ -143,7 +134,7 @@ providers:
     fields:
       - name: api_key
         label: OpenAI API key
-        placeholder: Paste your OpenAI API key
+        placeholder: sk-…
     test:
       method: GET
       url: "{base_url}/models"
@@ -161,11 +152,7 @@ providers:
     brand_color: '#6467F2'
     role: model_provider
     kind: openrouter
-    purpose: >-
-      One key for hosted models from every major family: Claude, GPT, Gemini,
-      Mistral, Qwen, and several hundred others. You pick the models on the
-      Models tab. Usage is billed by OpenRouter to your account, at each
-      model's own price.
+    purpose: One key for Claude, GPT, Gemini, and more.
     sends_images: true
     optional: true
     base_url: https://openrouter.ai/api/v1
@@ -174,7 +161,7 @@ providers:
     fields:
       - name: api_key
         label: OpenRouter API key
-        placeholder: Paste your OpenRouter key (starts with sk-or-)
+        placeholder: sk-or-…
     test:
       method: GET
       url: "{base_url}/key"
@@ -190,10 +177,7 @@ providers:
     label: Hugging Face
     role: downloads
     kind: huggingface
-    purpose: >-
-      Only needed to download local models whose authors require you to accept
-      a license on Hugging Face first ("gated" models). Most models in the
-      verified list download without it.
+    purpose: Only needed for gated local model downloads.
     sends_images: false
     optional: true
     base_url: https://huggingface.co
@@ -202,7 +186,7 @@ providers:
     fields:
       - name: token
         label: Hugging Face access token
-        placeholder: Paste a read-only token (starts with hf_)
+        placeholder: hf_…
     test:
       method: GET
       url: "{base_url}/api/whoami-v2"

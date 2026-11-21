@@ -16,13 +16,11 @@ import { el, icon, replace } from '../dom.js';
 const STEPS = ['ocr', 'parse'];
 const STEP_NAME = { ocr: 'OCR', parse: 'Parsing' };
 const LEVEL_LABEL = { low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high' };
-const LEVEL_NOTE = { low: 'fastest', high: 'model default', xhigh: 'slowest' };
+const LEVEL_NOTE = { low: 'fastest', high: 'default', xhigh: 'slowest' };
 const fmt = (n) => Number(n).toLocaleString('en-US');
-const fmtTokens = (n) => `${fmt(n)} tokens`;
 const fmtK = (n) => (n >= 1024 && n % 1024 === 0 ? `${n / 1024}K` : fmt(n));
 const listNames = (names) => (names.length <= 1 ? names.join('')
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
-const notFor = (names) => (names.length ? ` Does not apply to ${listNames(names)}.` : '');
 
 /**
  * mountGenSettings({ ocr: cardNode, parse: cardNode }) -> { refresh() }
@@ -81,46 +79,33 @@ export function mountGenSettings(cards) {
     // ------------------------------------------------------------ hints
     function hints(step, block, ctx) {
         const models = block.models;
-        const lacking = (key) => models.filter((m) => !m.controls[key]).map((m) => m.label);
         const keepsReasoning = models.filter((m) => m.controls.reasoning && m.controls.reasoning.can_turn_off === false)
             .map((m) => m.label);
-        let reasoning = 'The model thinks before it answers. Slower, and the thinking counts toward the output length.';
-        if (keepsReasoning.length) reasoning += ` ${listNames(keepsReasoning)} always reasons a little; with this off it uses its lowest strength.`;
-        reasoning += notFor(lacking('reasoning'));
+        let reasoning = 'Think before answering. More accurate, slower.';
+        if (keepsReasoning.length) reasoning += ` ${listNames(keepsReasoning)} always uses at least Low.`;
 
-        const strength = `How long the model thinks before it answers. Higher is slower.${notFor(lacking('strength'))}`;
+        const strength = 'How deeply the model thinks. Higher is slower.';
 
-        // Output limits can differ per model (a model that always reasons gets more room).
         const limits = models.map((m) => ({ label: m.label, ...((m.controls.output_length || {}).max_tokens || {}) }));
         const same = limits.every((l) => l.standard === limits[0].standard && l.long === limits[0].long);
-        let output = 'Most tokens one reply may use, thinking included.';
-        if (same && limits.length) output += ` Standard: up to ${fmt(limits[0].standard)}. Long: up to ${fmt(limits[0].long)}.`;
-        else output += ` Standard / long: ${limits.map((l) => `${l.label} ${fmt(l.standard)} / ${fmt(l.long)}`).join('; ')}.`;
+        const output = same && limits.length
+            ? `Allow longer replies (up to ${fmtK(limits[0].long)} vs. ${fmtK(limits[0].standard)}).`
+            : 'Allow longer replies.';
 
-        let detail = '';
         const withDetail = models.find((m) => m.controls.image_detail);
-        if (withDetail) {
-            const tokens = withDetail.controls.image_detail.tokens || {};
-            const std = (tokens.standard || {}).image_max_tokens;
-            const high = (tokens.high || {}).image_max_tokens;
-            detail = (std && high ? `High sends each image at up to ${fmt(high)} visual tokens instead of ${fmt(std)}: finer print, slower.`
-                : 'High sends each image at a higher resolution: finer print, slower.')
-                + ' Changing it restarts the engine at the next image.' + notFor(lacking('image_detail'));
-        }
+        const detail = withDetail ? 'Higher image resolution for fine print. Slower; restarts engine.' : '';
 
-        const context = 'How much text the model holds at once: prompt, image and reply. A larger window uses more graphics memory; changing it restarts the engine. '
-            + ctx.map((c) => (ctx.length > 1 ? `${c.label}: ` : '') + contextNote(c)).join(' ');
+        const context = `Memory window per request. Larger uses more GPU memory. ${ctx.map((c) => (ctx.length > 1 ? `${c.label}: ` : '') + contextNote(c)).join(' ')}`;
         return { reasoning, strength, output, detail, context };
     }
 
     function contextNote(entry) {
         const max = Number(entry.max) || null;
         if (entry.value === 'auto' && entry.mode === 'auto_max') {
-            return `Automatic: ${entry.effective ? fmtTokens(entry.effective) : 'as large as fits'}, the most that fits in free graphics memory now`
-                + (max ? ` (model maximum ${fmt(max)})` : '') + ', because reasoning is on.';
+            return `Auto max (${fmtK(entry.effective || entry.min || 8192)}).`;
         }
-        if (entry.value === 'auto') return `Automatic: ${fmtTokens(entry.effective || entry.needed || entry.min || 8192)}, enough for these settings.`;
-        return `Set to ${fmtTokens(entry.value)}. Range ${fmt(entry.min || 8192)} to ${max ? fmt(max) : 'the model maximum'}.`;
+        if (entry.value === 'auto') return `Auto (${fmtK(entry.effective || entry.needed || entry.min || 8192)}).`;
+        return `${fmtK(entry.value)} (range ${fmtK(entry.min || 8192)}–${max ? fmtK(max) : 'max'}).`;
     }
 
     // ------------------------------------------------------------ controls
@@ -178,7 +163,7 @@ export function mountGenSettings(cards) {
         return el('div', null,
             multi ? el('span', { class: 'gen-ctx-model' }, entry.label) : null,
             el('div', { class: 'gen-ctx-line' }, input,
-                el('label', { class: 'check-row gen-ctx-auto', for: `${id}-auto` }, autoBox, 'Automatic')),
+                el('label', { class: 'check-row gen-ctx-auto', for: `${id}-auto` }, autoBox, 'Auto')),
             el('p', { class: 'gen-pop-note' }, contextNote(entry)));
     }
 
@@ -192,8 +177,8 @@ export function mountGenSettings(cards) {
                 'aria-expanded': open ? 'true' : 'false', 'data-tip': tip, 'aria-description': tip,
                 'data-fk': `${step}-context`, onclick: () => togglePop(step, 'context'),
             }, `Context: ${text}`, icon('chevronDown', { size: 12 })),
-            open ? el('div', { class: 'gen-pop', role: 'dialog', 'aria-label': 'Context window' },
-                el('div', { class: 'gen-pop-title' }, 'Context window'),
+            open ? el('div', { class: 'gen-pop', role: 'dialog', 'aria-label': 'Context' },
+                el('div', { class: 'gen-pop-title' }, 'Context'),
                 el('div', { class: 'gen-ctx-list' }, ctx.map((c) => contextControl(step, c, ctx.length > 1)))) : null);
     }
 
@@ -204,14 +189,14 @@ export function mountGenSettings(cards) {
             const sent = {};
             for (const m of block.models) sent[m.label] = { ...m.sent };
             for (const c of ctx) (sent[c.label] || (sent[c.label] = {})).context_window = c.effective || null;
-            pop = el('div', { class: 'gen-pop is-end', role: 'dialog', 'aria-label': 'Values sent to the model' },
-                el('div', { class: 'gen-pop-title' }, 'Values sent to the model'),
+            pop = el('div', { class: 'gen-pop is-end', role: 'dialog', 'aria-label': 'Request parameters' },
+                el('div', { class: 'gen-pop-title' }, 'Request parameters'),
                 el('pre', { class: 'logs logs-small gen-raw-pre', tabindex: '0' }, JSON.stringify(sent, null, 2)));
         }
         return el('span', { class: 'gen-pop-root gen-end' },
             el('button', {
                 type: 'button', class: 'gen-icon-btn', 'aria-haspopup': 'dialog', 'aria-expanded': open ? 'true' : 'false',
-                'aria-label': 'Values sent to the model', 'data-tip': 'Values sent to the model', 'data-tip-align': 'end',
+                'aria-label': 'Request parameters', 'data-tip': 'Request parameters', 'data-tip-align': 'end',
                 'data-fk': `${step}-raw`, onclick: () => togglePop(step, 'raw'),
             }, '{ }'),
             pop);

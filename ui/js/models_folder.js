@@ -4,7 +4,7 @@
 // on the Models tab; the copies stay in step through the 'models-changed' event.
 
 import { api, toast, toastError } from './api.js';
-import { el, icon, replace, fmtBytes } from './dom.js';
+import { el, icon, infoTip, replace, fmtBytes } from './dom.js';
 import { emit, on, loadSettings, updateCachedSettings } from './state.js';
 
 const OTHER_COLOR = '#8a8f98';
@@ -59,10 +59,9 @@ function usageView(families, disk) {
     const knownDisk = Number.isFinite(diskTotal) && diskTotal > 0 && Number.isFinite(diskFree);
     const head = el('div', { class: 'mf-head' },
         el('span', { class: 'mf-head-main' }, total
-            ? `${count} downloaded model${count === 1 ? '' : 's'} use ${fmtBytes(total)}`
-            : 'No models are downloaded yet'),
-        knownDisk ? el('span', { class: 'mf-head-sub' },
-            `${total ? `${((total / diskTotal) * 100).toFixed(total / diskTotal < 0.1 ? 1 : 0)}% of this ${fmtBytes(diskTotal)} drive · ` : ''}${fmtBytes(diskFree)} free`) : null);
+            ? `${count} model${count === 1 ? '' : 's'} · ${fmtBytes(total)}`
+            : 'No models downloaded'),
+        knownDisk ? el('span', { class: 'mf-head-sub' }, `${fmtBytes(diskFree)} free`) : null);
     if (!total) return [head];
 
     const bar = el('div', { class: 'mf-bar', role: 'img', 'aria-label': `Disk space used by each downloaded model, ${fmtBytes(total)} in all` });
@@ -76,8 +75,8 @@ function usageView(families, disk) {
                 'aria-label': `${build.label}, ${fmtBytes(bytes)}` });
             seg.style.flexGrow = String(bytes);
             seg.style.setProperty('--mf-color', group.color);
-            const lines = [build.label, [fmtBytes(bytes), build.params ? `${build.params} parameters` : null, build.quant].filter(Boolean).join(' · '),
-                [group.label, group.developer].filter(Boolean).join(' · ') + (partial ? ' · download not finished' : '')];
+            const lines = [build.label, [fmtBytes(bytes), build.params || null, build.quant].filter(Boolean).join(' · '),
+                [group.label, group.developer].filter(Boolean).join(' · ') + (partial ? ' · paused' : '')];
             seg.addEventListener('mouseenter', () => showTip(seg, lines));
             seg.addEventListener('focus', () => showTip(seg, lines));
             seg.addEventListener('mouseleave', hideTip);
@@ -103,7 +102,7 @@ function usageView(families, disk) {
         el('div', { class: 'mf-drive-bar' }, models, other),
         el('div', { class: 'mf-drive-key' },
             el('span', null, el('span', { class: 'mf-key is-models' }), `Models ${fmtBytes(total)}`),
-            el('span', null, el('span', { class: 'mf-key is-other' }), `Other files ${fmtBytes(Math.max(0, used - total))}`),
+            el('span', null, el('span', { class: 'mf-key is-other' }), `Other ${fmtBytes(Math.max(0, used - total))}`),
             el('span', null, el('span', { class: 'mf-key is-free' }), `Free ${fmtBytes(diskFree)}`)));
     }
     return [head, bar, legend, drive];
@@ -132,7 +131,7 @@ export function mountModelsFolder(host, { onSaved = null } = {}) {
                     toast('The folder picker could not be opened.', 'error');
                 }
             },
-        }, icon('folder', { size: 14 }), 'Browse…')
+        }, icon('folder', { size: 14 }), 'Browse')
         : null;
 
     function showWarnings(list) {
@@ -190,8 +189,9 @@ export function mountModelsFolder(host, { onSaved = null } = {}) {
     }
 
     replace(host, el('div', { class: 'card mf-card' },
-        el('label', { for: inputId }, 'Where downloaded models are kept'),
-        el('p', { class: 'help-text' }, 'Model files are large. Choose a drive with plenty of free space, outside any synced folder such as Dropbox or OneDrive.'),
+        el('div', { class: 'mf-header-row' },
+            el('label', { for: inputId }, 'Folder'),
+            infoTip('Use a local drive with plenty of free space, outside Dropbox or OneDrive.', 'start')),
         el('div', { class: 'row row-grow' }, input, browse, save),
         warnings,
         usage));

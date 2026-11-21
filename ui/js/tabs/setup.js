@@ -20,21 +20,21 @@ import { describeUpdate, installUpdate, onUpdate } from '../updates.js';
 const CHOICES = [
     {
         id: 'openrouter', icons: ['cloud'], title: 'OpenRouter',
-        text: 'Cloud models through one key.',
-        facts: ['Pay only for what you use', 'Nothing large to download'],
-        tip: 'Images are sent to the model’s provider through OpenRouter, with your own key.',
+        text: 'Cloud models.',
+        facts: ['Pay per use', 'No downloads'],
+        tip: 'Images are sent to the model provider using your OpenRouter key.',
     },
     {
-        id: 'local', icons: ['computer'], title: 'On this computer',
-        text: 'Private, and free to run.',
-        facts: ['Needs a capable graphics card', 'Large downloads (5 to 40 GB)'],
-        tip: 'Images never leave this computer. Models run in the llama.cpp engine.',
+        id: 'local', icons: ['computer'], title: 'Local',
+        text: 'Runs on this computer.',
+        facts: ['Private & free', '5–40 GB downloads'],
+        tip: 'Images stay on this computer. Requires a capable GPU.',
     },
     {
         id: 'both', icons: ['cloud', 'computer'], title: 'Both',
-        text: 'Pick either one for each job.',
-        facts: ['The most choice', 'Set up both'],
-        tip: 'Set up OpenRouter and local models, then choose per run on the VVL tab.',
+        text: 'Cloud + local.',
+        facts: ['Switch per job'],
+        tip: 'Set up both and pick per run on the VVL tab.',
     },
 ];
 
@@ -50,15 +50,15 @@ function verdict(report) {
     switch (cap.tier) {
         case 'workstation':
         case 'high':
-            return { good: true, short: 'Good fit', text: 'This computer runs local models well, including large ones.' };
+            return { good: true, short: 'Good fit', text: 'Good fit for local models.' };
         case 'mid':
-            return { good: true, short: 'Good fit', text: 'This computer runs small and medium local models well.' };
+            return { good: true, short: 'Good fit', text: 'Fits small and medium models.' };
         case 'entry':
-            return { good: false, short: 'Small models only', text: 'This computer can run small local models. Larger ones will be slow.' };
+            return { good: false, short: 'Small models only', text: 'Small models only.' };
         case 'cpu_only':
-            return { good: false, short: 'No usable graphics card', text: 'No graphics card that local models can use was found. They would run slowly; OpenRouter may suit this computer better.' };
+            return { good: false, short: 'No GPU', text: 'No supported GPU found. Cloud models recommended.' };
         default:
-            return { good: false, short: 'Not checked', text: 'How well local models will run here could not be checked.' };
+            return { good: false, short: 'Unknown', text: 'Could not check hardware.' };
     }
 }
 
@@ -141,7 +141,7 @@ export async function mount(panel) {
     // ------------------------------------------------------------ persistent parts
     // Kept across re-renders, so typing and progress bars are not reset.
     const keyInput = el('input', {
-        type: 'password', id: 'setupOpenRouterKey', placeholder: 'Paste your OpenRouter key (starts with sk-or-)',
+        type: 'password', id: 'setupOpenRouterKey', placeholder: 'sk-or-…',
         autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', 'aria-label': 'OpenRouter API key',
     });
     keyInput.addEventListener('keydown', (ev) => {
@@ -297,17 +297,15 @@ export async function mount(panel) {
     function appItem() {
         const ready = update.status === 'ready';
         return {
-            id: 'app', status: 'done', title: 'VoucherVisionLocal',
-            text: ready ? `Version ${info.version}. A new version is ready; restart to update.` : `Version ${info.version || 'unknown'} is installed.`,
-            tip: info.packaged ? 'The installed desktop app.' : 'Running from a source checkout.',
+            id: 'app', status: 'done', title: 'App',
+            text: ready ? `v${info.version} · Update ready` : `v${info.version || 'unknown'}`,
         };
     }
 
     function pythonItem() {
         return {
-            id: 'python', status: 'done', title: 'Python environment',
-            text: info.python ? `Python ${info.python} is working.` : 'Python is working.',
-            tip: info.packaged ? 'Installed and kept up to date by the app.' : 'The project environment, managed by uv.',
+            id: 'python', status: 'done', title: 'Python',
+            text: info.python || 'Ready',
         };
     }
 
@@ -346,35 +344,34 @@ export async function mount(panel) {
         const title = 'OpenRouter key';
         if (!data.providers) return loadingItem('key', title, 'providers', loaders.providers);
         const p = openRouter();
-        if (!p) return { id: 'key', status: 'problem', title, text: 'OpenRouter is not listed in this version.', required: true };
+        if (!p) return { id: 'key', status: 'problem', title, text: 'OpenRouter unavailable.', required: true };
         const masked = ((p.fields || []).find((f) => f.saved && f.masked) || {}).masked;
         const test = p.last_test;
-        const getKey = p.key_url ? externalLink('Get a key', p.key_url) : null;
+        const getKey = p.key_url ? externalLink('Get key', p.key_url) : null;
         const form = el('div', { class: 'setup-key' },
             el('div', { class: 'key-input-row' }, keyInput, keyToggle,
-                button(ui.keyBusy ? 'Checking…' : 'Save and check', saveKey, { disabled: ui.keyBusy })),
-            el('div', { class: 'setup-key-links' }, getKey,
-                el('span', { class: 'help-text' }, 'Checking a key is free. It is kept only on this computer.')));
+                button(ui.keyBusy ? 'Checking…' : 'Save', saveKey, { disabled: ui.keyBusy })),
+            el('div', { class: 'setup-key-links' }, getKey));
         keyInput.disabled = ui.keyBusy;
 
-        if (ui.keyBusy) return { id: 'key', status: 'working', title, text: 'Saving and checking the key…', extra: form, required: true };
+        if (ui.keyBusy) return { id: 'key', status: 'working', title, text: 'Checking key…', extra: form, required: true };
         if (ui.keyProblem) {
-            return { id: 'key', status: 'problem', title, text: `The key was not checked: ${ui.keyProblem}`, extra: form, required: true };
+            return { id: 'key', status: 'problem', title, text: ui.keyProblem, extra: form, required: true };
         }
         if (!p.configured) {
-            return { id: 'key', status: 'todo', title, text: 'Paste your OpenRouter key.', tip: 'One key reaches Claude, GPT, Gemini, Qwen and hundreds of other models. OpenRouter bills your account for what you use.', extra: form, required: true };
+            return { id: 'key', status: 'todo', title, text: 'Add your key.', tip: 'Stored locally. One key for Claude, GPT, Gemini, and more.', extra: form, required: true };
         }
         const shown = masked ? ` (${masked})` : '';
         if (test && test.status === 'invalid_key') {
-            return { id: 'key', status: 'problem', title, text: `OpenRouter did not accept the saved key${shown}. Paste a new one.`, extra: form, required: true };
+            return { id: 'key', status: 'problem', title, text: `Key rejected${shown}. Paste a new one.`, extra: form, required: true };
         }
         if (test && !test.ok) {
-            return { id: 'key', status: 'problem', title, text: test.message || 'The key could not be checked.', tip: 'Check the internet connection, then try again.',
-                action: button('Check again', testKey, { primary: false }), required: true };
+            return { id: 'key', status: 'problem', title, text: test.message || 'Could not verify key.', tip: 'Check your internet connection and retry.',
+                action: button('Retry', testKey, { primary: false }), required: true };
         }
         return {
             id: 'key', status: 'done', title,
-            text: test && test.ok ? `Key saved and working${shown}.` : `Key saved${shown}.`,
+            text: `Saved${shown}`,
             action: ui.keyOpen
                 ? button('Cancel', () => { ui.keyOpen = false; render(); }, { primary: false })
                 : button('Replace', () => { ui.keyOpen = true; render(); keyInput.focus(); }, { primary: false }),
@@ -387,15 +384,15 @@ export async function mount(panel) {
         const models = (data.settings && data.settings.openrouter && data.settings.openrouter.models) || [];
         const go = () => gotoTab('models', 'remote');
         if (models.length) {
-            return { id: 'pick', status: 'done', title: 'Pick models', text: `${models.length} OpenRouter model${models.length === 1 ? '' : 's'} added.`,
+            return { id: 'pick', status: 'done', title: 'Cloud models', text: `${models.length} added`,
                 action: button('Change', go, { primary: false }), required: true };
         }
-        return { id: 'pick', status: 'todo', title: 'Pick models', text: 'Choose which OpenRouter models to use.',
-            tip: 'The Models tab lists every model with its price per 1,000 images.', action: button('Pick models', go), required: true };
+        return { id: 'pick', status: 'todo', title: 'Cloud models', text: 'Select models to use.',
+            action: button('Browse', go), required: true };
     }
 
     function systemItem() {
-        const title = 'Check this computer';
+        const title = 'Hardware';
         if (!data.system) {
             return { ...loadingItem('system', title, 'system', () => loaders.system(true)), required: false };
         }
@@ -412,18 +409,18 @@ export async function mount(panel) {
             facts.push(each ? `${gpus.length}× ${g.name} (${fmtMemory(g.vram_total_bytes)} each)`
                 : gpus.map((x) => `${x.name}${Number.isFinite(x.vram_total_bytes) ? ` (${fmtMemory(x.vram_total_bytes)})` : ''}`).join(', '));
         } else {
-            facts.push('No graphics card found');
+            facts.push('No GPU found');
         }
         if (Number.isFinite(mem.total_bytes)) facts.push(`${fmtMemory(mem.total_bytes)} RAM`);
         const lowDisk = Number.isFinite(disk.free_bytes) && disk.free_bytes < LOW_DISK_BYTES;
-        if (Number.isFinite(disk.free_bytes)) facts.push(`${fmtBytes(disk.free_bytes)} free for models`);
+        if (Number.isFinite(disk.free_bytes)) facts.push(`${fmtBytes(disk.free_bytes)} free`);
         let text = v.text;
-        if (lowDisk) text += ' The models folder’s drive is nearly full.';
+        if (lowDisk) text += ' Low disk space.';
         return {
             id: 'system', status: v.good && !lowDisk ? 'done' : 'problem', title, text,
             tip: [cap.summary, cap.backend_reason].filter(Boolean).join('. ') || null,
             facts,
-            action: button('Check again', async () => {
+            action: button('Refresh', async () => {
                 data.system = null;
                 render();
                 await loaders.system(true);
@@ -446,10 +443,10 @@ export async function mount(panel) {
             });
         }
         return {
-            id: 'folder', status: synced ? 'problem' : 'done', title: 'Model folder',
-            text: synced ? 'This folder is inside a synced folder such as Dropbox. Choose another one.' : 'Downloaded models are kept here.',
+            id: 'folder', status: synced ? 'problem' : 'done', title: 'Models folder',
+            text: synced ? 'Inside a synced folder (e.g. Dropbox). Choose a local drive.' : null,
             path: ui.folderOpen ? null : dir,
-            tip: 'Model files are large. Choose a drive with plenty of free space, outside any synced folder.',
+            tip: 'Choose a local drive with plenty of free space, outside Dropbox or OneDrive.',
             action: button(ui.folderOpen ? 'Close' : 'Change', () => { ui.folderOpen = !ui.folderOpen; render(); }, { primary: false }),
             extra: ui.folderOpen ? folderHost : null,
             required: false,
@@ -457,31 +454,31 @@ export async function mount(panel) {
     }
 
     function engineItem() {
-        const title = 'llama.cpp engine';
+        const title = 'Local engine';
         if (!data.engine) return loadingItem('engine', title, 'engine', loaders.engine);
         const e = data.engine;
         const m = e.managed || {};
         const rec = e.recommended_variant;
         const job = activeJob(ENGINE_KIND);
-        const details = button('Details', () => gotoTab('engine', 'engine'), { primary: false });
+        const details = button('Engine', () => gotoTab('engine', 'engine'), { primary: false });
         if (job || ui.engineBusy) {
             if (job) engineProgress.update(job);
-            return { id: 'engine', status: 'working', title, text: job ? 'Installing the engine…' : 'Starting the install…',
-                tip: `${job && job.label ? `${job.label}. ` : ''}After the download, the engine is tested on this computer.`, extra: job ? engineProgress.node : null, required: true };
+            return { id: 'engine', status: 'working', title, text: job ? 'Installing…' : 'Starting…',
+                tip: job && job.label ? job.label : null, extra: job ? engineProgress.node : null, required: true };
         }
         if (ui.engineProblem) {
             return { id: 'engine', status: 'problem', title, text: ui.engineProblem,
-                action: button('Try again', () => installEngine(m.installed && m.variant ? m.variant.id : null)), required: true };
+                action: button('Retry', () => installEngine(m.installed && m.variant ? m.variant.id : null)), required: true };
         }
         if (m.installed) {
             const variant = m.variant && m.variant.label ? m.variant.label : null;
             if (m.pinned_version && m.version !== m.pinned_version) {
-                return { id: 'engine', status: 'todo', title, text: `Engine update available: ${m.pinned_version}.`,
-                    tip: `Installed: llama.cpp ${m.version || 'unknown'}${variant ? ` (${variant})` : ''}. The update is the version this release of VoucherVisionLocal was tested with.`,
+                return { id: 'engine', status: 'todo', title, text: `Update available (${m.pinned_version}).`,
+                    tip: `Installed: ${m.version || 'unknown'}${variant ? ` (${variant})` : ''}.`,
                     action: button('Update', () => installEngine(m.variant ? m.variant.id : null), { iconName: 'download' }), required: true, ok: true };
             }
-            return { id: 'engine', status: 'done', title, text: m.version ? `Installed, version ${m.version}.` : 'Installed.',
-                tip: variant ? `${variant}. It starts by itself when a local model is used.` : null, action: details, required: true };
+            return { id: 'engine', status: 'done', title, text: m.version ? `${variant || 'Installed'} (${m.version})` : 'Installed',
+                action: details, required: true };
         }
         const last = lastJob(ENGINE_KIND);
         if (last && last.state === 'error') {
@@ -489,40 +486,40 @@ export async function mount(panel) {
             const nextId = problem.details && problem.details.next_variant;
             const next = nextId ? (e.variants || []).find((v) => v.id === nextId) : null;
             return { id: 'engine', status: 'problem', title,
-                text: problem.code === 'ENGINE_SELF_TEST_FAILED' ? 'That engine build cannot run on this computer.' : 'The install did not finish.',
+                text: problem.code === 'ENGINE_SELF_TEST_FAILED' ? 'Build failed self-test.' : 'Install failed.',
                 tip: [problem.message, problem.hint].filter(Boolean).join(' '),
                 action: next ? button(`Install ${next.label}`, () => installEngine(next.id), { iconName: 'download' })
-                    : button('Try again', () => installEngine(last.target || null)),
+                    : button('Retry', () => installEngine(last.target || null)),
                 required: true };
         }
         if (!rec) {
-            return { id: 'engine', status: 'problem', title, text: e.unavailable_reason || 'No engine build fits this computer.', action: details, required: true };
+            return { id: 'engine', status: 'problem', title, text: e.unavailable_reason || 'No compatible build found.', action: details, required: true };
         }
-        return { id: 'engine', status: 'todo', title, text: 'Install the program that runs models on this computer.',
+        return { id: 'engine', status: 'todo', title, text: 'Required to run local models.',
             tip: `${rec.label}${rec.reason ? `. ${rec.reason}` : ''}`,
             action: button(`Install (${fmtBytes(rec.download_size_bytes)})`, () => installEngine(rec.id), { iconName: 'download' }), required: true };
     }
 
     function modelItem() {
-        const title = 'A model';
+        const title = 'Local model';
         if (!data.families) return loadingItem('model', title, 'families', loaders.models);
         const builds = data.families.flatMap((f) => f.builds || []);
         const installed = builds.filter((b) => b.install_state === 'installed');
-        const other = el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('models', 'local') }, 'Choose a different model');
+        const other = el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('models', 'local') }, 'Browse all');
         const job = activeJob(DOWNLOAD_KIND);
         if (job || ui.modelBusy) {
             if (job) modelProgress.update(job);
-            return { id: 'model', status: 'working', title, text: job ? `Downloading ${job.label || 'a model'}…` : 'Starting the download…',
-                tip: 'The download can be paused and resumed on the Models tab.', extra: job ? modelProgress.node : null, required: true };
+            return { id: 'model', status: 'working', title, text: job ? `Downloading ${job.label || 'model'}…` : 'Starting…',
+                tip: 'Pause or cancel on the Models tab.', extra: job ? modelProgress.node : null, required: true };
         }
         if (installed.length) {
             const more = installed.length - 1;
-            return { id: 'model', status: 'done', title, text: `${installed[0].label}${more ? ` and ${more} more` : ''} ${more ? 'are' : 'is'} downloaded.`,
-                action: button('Models tab', () => gotoTab('models', 'local'), { primary: false }), required: true };
+            return { id: 'model', status: 'done', title, text: `${installed[0].label}${more ? ` + ${more} more` : ''}`,
+                action: button('Models', () => gotoTab('models', 'local'), { primary: false }), required: true };
         }
         const build = suggestedBuild(data.families);
         if (!build) {
-            return { id: 'model', status: 'todo', title, text: 'Choose a model to download.', action: button('Choose a model', () => gotoTab('models', 'local')), required: true };
+            return { id: 'model', status: 'todo', title, text: 'Choose a model.', action: button('Browse', () => gotoTab('models', 'local')), required: true };
         }
         const fit = build.fit || {};
         const size = fmtBytes(build.total_size_bytes);
@@ -532,9 +529,9 @@ export async function mount(panel) {
         const problem = ui.modelProblem || (failedJob && [failedJob.message, failedJob.hint].filter(Boolean).join(' '));
         return {
             id: 'model', status: problem ? 'problem' : 'todo', title,
-            text: problem || `Recommended for this computer: ${build.label}.`,
-            tip: [`${size} download`, fit.label, fit.detail].filter(Boolean).join('. '),
-            action: button(partial ? 'Resume download' : `Download (${size})`, () => downloadModel(build), { iconName: 'download' }),
+            text: problem || `Recommended: ${build.label}`,
+            tip: [`${size}`, fit.label, fit.detail].filter(Boolean).join(' · '),
+            action: button(partial ? 'Resume' : `Download (${size})`, () => downloadModel(build), { iconName: 'download' }),
             extra: el('div', { class: 'setup-item-links' }, other),
             required: true,
         };
@@ -555,7 +552,7 @@ export async function mount(panel) {
     const localHint = () => {
         if (!data.system) return null;
         const v = verdict(data.system);
-        return el('span', { class: ['setup-choice-hint', v.good ? 'is-good' : 'is-warn'] }, icon(v.good ? 'check' : 'alert', { size: 13 }), `This computer: ${v.short.toLowerCase()}`);
+        return el('span', { class: ['setup-choice-hint', v.good ? 'is-good' : 'is-warn'] }, icon(v.good ? 'check' : 'alert', { size: 13 }), v.short);
     };
 
     function renderUpdate() {
@@ -563,10 +560,10 @@ export async function mount(panel) {
         const lead = d.kind === 'working' ? el('span', { class: 'spinner spinner-small', 'aria-hidden': 'true' })
             : icon({ good: 'check', ready: 'download', bad: 'alert' }[d.kind] || 'info', { size: 15 });
         replace(updateLine,
-            el('span', { class: 'setup-version' }, `Version ${info.version || 'unknown'}`),
+            el('span', { class: 'setup-version' }, `v${info.version || 'unknown'}`),
             el('span', { class: 'setup-dot', 'aria-hidden': 'true' }, '·'),
             el('span', { class: `setup-update-state is-${d.kind}` }, lead, d.text),
-            d.kind === 'ready' ? el('button', { type: 'button', class: 'button button-small', onclick: () => installUpdate() }, 'Restart to update') : null,
+            d.kind === 'ready' ? el('button', { type: 'button', class: 'button button-small', onclick: () => installUpdate() }, 'Restart') : null,
             tipMark(d.tip));
     }
 
@@ -606,12 +603,12 @@ export async function mount(panel) {
         const doneCount = list.filter((i) => i.status === 'done').length;
         const keepFocus = document.activeElement === keyInput;
         replace(checklistHost,
-            chosen ? el('p', { class: 'setup-progress' }, `${doneCount} of ${list.length} done`) : null,
+            chosen ? el('p', { class: 'setup-progress' }, `${doneCount}/${list.length} done`) : null,
             el('ol', { class: 'setup-list' }, list.map((item, i) => el('li', { class: ['setup-item', `is-${item.status}`], dataset: { step: item.id } },
                 statusIcon(item.status, i + 1),
                 el('div', { class: 'setup-item-body' },
                     el('div', { class: 'setup-item-title' }, item.title, tipMark(item.tip)),
-                    el('div', { class: 'setup-item-text' }, item.text),
+                    item.text ? el('div', { class: 'setup-item-text' }, item.text) : null,
                     item.path ? el('code', { class: 'setup-path' }, item.path) : null,
                     item.facts && item.facts.length ? el('div', { class: 'setup-facts' }, item.facts.map((f) => el('span', null, f))) : null,
                     item.extra || null),
@@ -621,9 +618,8 @@ export async function mount(panel) {
                 ? el('div', { class: 'setup-ready', role: 'status' },
                     el('span', { class: 'setup-ready-icon', 'aria-hidden': 'true' }, icon('check', { size: 22 })),
                     el('div', { class: 'setup-ready-text' },
-                        el('strong', null, 'You’re ready'),
-                        el('span', null, 'Everything this choice needs is set up.')),
-                    el('button', { type: 'button', class: 'button', onclick: () => gotoTab('vvl') }, 'Go to VVL', icon('play', { size: 14 })))
+                        el('strong', null, 'Ready')),
+                    el('button', { type: 'button', class: 'button', onclick: () => gotoTab('vvl') }, 'Start', icon('play', { size: 14 })))
                 : null);
         if (keepFocus && keyInput.isConnected) keyInput.focus();
     }
@@ -641,10 +637,9 @@ export async function mount(panel) {
     replace(panel, el('div', { class: 'setup-page' },
         el('header', { class: 'setup-hero' },
             el('img', { src: '/ui/img/logo.png', alt: '', class: 'setup-logo', width: '96', height: '50' }),
-            el('div', null, el('h2', { class: 'setup-title' }, 'Set up VoucherVisionLocal'), updateLine)),
-        step('1', 'How will you run models?', choicesHost,
-            el('p', { class: 'help-text setup-change-later' }, 'You can change this at any time.')),
-        step('2', 'Get ready', checklistHost)));
+            el('div', null, el('h2', { class: 'setup-title' }, 'Setup'), updateLine)),
+        step('1', 'Where to run models', choicesHost),
+        step('2', 'Checklist', checklistHost)));
 
     // ------------------------------------------------------------ events
     let lastJobsKey = '';

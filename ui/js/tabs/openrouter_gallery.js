@@ -3,7 +3,7 @@
 // parsing pickers on the VVL tab.
 
 import { api, inlineError, toastError } from '../api.js';
-import { el, icon, replace, stateBox, badge } from '../dom.js';
+import { el, icon, infoTip, replace, stateBox, badge } from '../dom.js';
 import { emit, gotoTab } from '../state.js';
 
 const OWNER_COLORS = {
@@ -13,8 +13,8 @@ const OWNER_COLORS = {
     xiaomi: '#FF6900', tencent: '#0052D9', perplexity: '#20808D',
 };
 const COST_STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, null];
-const AGES = [['any', 'Any release date'], ['3', 'Last 3 months'], ['6', 'Last 6 months'], ['12', 'Last year'], ['24', 'Last 2 years']];
-const ROLES = [['ocr', 'OCR', 'reads images'], ['parse', 'Parsing', 'text only is fine'], ['both', 'Both steps', 'one model']];
+const AGES = [['any', 'Any'], ['3', '3 months'], ['6', '6 months'], ['12', '1 year'], ['24', '2 years']];
+const ROLES = [['ocr', 'OCR'], ['parse', 'Parsing'], ['both', 'Both']];
 const PAGE = 100;
 
 const usd = (v) => {
@@ -141,12 +141,12 @@ export function mountOpenRouterGallery(host, provider) {
     }
     function tags(m) {
         return el('span', { class: 'org-tags' },
-            el('span', { class: ['org-tag', m.vision ? 'is-img' : ''] }, m.vision ? 'Images' : 'Text only'),
-            m.private ? el('span', { class: 'org-tag is-private', title: `Offered by a provider that keeps no copy of your data: ${(m.private_providers || []).join(', ')}.` },
+            el('span', { class: ['org-tag', m.vision ? 'is-img' : ''] }, m.vision ? 'Vision' : 'Text'),
+            m.private ? el('span', { class: 'org-tag is-private', title: `Zero-retention: ${(m.private_providers || []).join(', ')}` },
                 icon('shield', { size: 11 }), el('span', { class: 'visually-hidden' }, 'Private')) : null,
-            m.reasoning ? el('span', { class: 'org-tag', title: 'The thinking level (low, medium, high) can be set on the VVL tab.' }, 'Thinking') : null,
-            m.structured_output ? el('span', { class: 'org-tag', title: 'Parsing can require the exact fields of the prompt.' }, 'JSON') : null,
-            m.free ? el('span', { class: 'org-tag is-free', title: 'Free models are limited to about 20 requests a minute.' }, 'Free') : null);
+            m.reasoning ? el('span', { class: 'org-tag', title: 'Supports thinking levels' }, 'Thinking') : null,
+            m.structured_output ? el('span', { class: 'org-tag', title: 'Strict JSON output' }, 'JSON') : null,
+            m.free ? el('span', { class: 'org-tag is-free', title: 'Rate-limited (~20/min)' }, 'Free') : null);
     }
     function check(key, label, title) {
         return el('label', { class: 'org-check', title },
@@ -160,79 +160,78 @@ export function mountOpenRouterGallery(host, provider) {
         let credit = null;
         if (account && account.ok) {
             const left = account.limit_remaining_usd;
-            credit = el('span', { class: 'org-credit' }, Number.isFinite(left) ? `${usd(left)} of credit left` : `${usd(account.usage_usd || 0)} used so far`);
+            credit = el('span', { class: 'org-credit' }, Number.isFinite(left) ? `${usd(left)} left` : `${usd(account.usage_usd || 0)} used`);
         } else if (account && account.configured && account.message) {
             credit = el('span', { class: 'org-credit is-bad' }, account.message);
         }
         replace(head,
             el('h3', null, provider.label),
-            data.configured ? badge('Key saved', 'good') : badge('No key saved', 'warn'),
-            el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('keys', provider.id) }, data.configured ? 'Manage key' : 'Add a key'),
+            data.configured ? badge('Connected', 'good') : badge('No key', 'warn'),
+            el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('keys', provider.id) }, data.configured ? 'Key' : 'Add key'),
             credit,
             el('span', { class: 'spacer' }),
-            el('span', { class: 'org-conc', title: 'How many requests are sent to OpenRouter at the same time during a batch.' }, 'Requests at a time',
-                el('span', { class: 'org-seg', role: 'group', 'aria-label': 'Requests at a time' }, levels.map((n) =>
+            el('span', { class: 'org-conc' }, 'Parallel', infoTip('Concurrent requests sent during a batch.'),
+                el('span', { class: 'org-seg', role: 'group', 'aria-label': 'Parallel requests' }, levels.map((n) =>
                     el('button', { type: 'button', 'aria-pressed': String(n === data.concurrency),
                         onclick: () => saveSetting({ concurrency: n }, () => { data.concurrency = n; renderHead(); }) }, String(n))))),
-            el('button', { type: 'button', class: 'button-secondary button-small', title: 'Fetch the current model list and prices from OpenRouter', onclick: () => load({ refresh: true }) },
-                icon('refresh', { size: 13 }), 'Refresh list'));
+            el('button', { type: 'button', class: 'button-secondary button-small', title: 'Refresh model list and prices', onclick: () => load({ refresh: true }) },
+                icon('refresh', { size: 13 }), 'Refresh'));
     }
 
     function renderMine() {
-        replace(mine, el('span', { class: 'org-mine-title' }, `My models (${data.added.length})`),
+        replace(mine, el('span', { class: 'org-mine-title' }, `Added (${data.added.length})`),
             data.added.length
                 ? data.added.map((id) => {
                     const m = byId.get(id);
                     const name = m ? m.name : id;
                     const uses = [];
                     if ((data.selection.ocr || []).includes(`api:openrouter:${id}`)) uses.push('OCR');
-                    if (data.selection.parse === `api:openrouter:${id}`) uses.push('parsing');
+                    if (data.selection.parse === `api:openrouter:${id}`) uses.push('Parsing');
                     return el('span', { class: 'org-pill' }, dot(m ? m.owner : null), name,
-                        el('small', null, uses.length ? `used for ${uses.join(' and ')}` : (!m ? 'no longer listed' : (m.vision ? 'OCR + parsing' : 'parsing only'))),
+                        el('small', null, uses.length ? uses.join(' · ') : (!m ? 'unlisted' : (m.vision ? 'OCR · Parsing' : 'Parsing'))),
                         el('button', { type: 'button', 'aria-label': `Remove ${name}`, title: 'Remove', onclick: () => changeModels({ remove: [id] }) }, '×'));
                 })
-                : el('span', { class: 'help-text' }, 'None yet. Models you add below appear in the OCR and parsing lists on the VVL tab.'));
+                : el('span', { class: 'help-text' }, 'None added.'));
     }
 
     function rail() {
-        const text = () => (COST_STEPS[state.cost] === null ? 'Any cost' : `Up to ${usd(COST_STEPS[state.cost])}`);
+        const text = () => (COST_STEPS[state.cost] === null ? 'Any' : `≤ ${usd(COST_STEPS[state.cost])}`);
         const out = el('output', null, text());
         const known = privacyKnown();
         return el('aside', { class: 'org-rail', 'aria-label': 'Filters' },
-            el('h4', null, 'Use for'),
-            el('div', { class: 'org-stack' }, ROLES.map(([id, label, hint]) => el('label', { class: 'org-check' },
+            el('h4', null, 'Role'),
+            el('div', { class: 'org-stack' }, ROLES.map(([id, label]) => el('label', { class: 'org-check' },
                 el('input', { type: 'radio', name: 'openRouterRole', checked: state.role === id, onchange: () => { state.role = id; state.limit = PAGE; build(); } }),
-                label, el('small', null, hint)))),
+                label))),
             el('h4', null, 'Search'),
-            el('input', { type: 'text', placeholder: 'Model or owner', value: state.q, 'aria-label': 'Search models',
+            el('input', { type: 'text', placeholder: 'Search…', value: state.q, 'aria-label': 'Search models',
                 oninput: (e) => { state.q = e.target.value; state.limit = PAGE; refresh(); } }),
-            el('h4', null, 'Owner'),
+            el('h4', null, 'Maker'),
             el('div', { class: 'org-owners' }, owners().map((o) => el('label', null,
                 el('input', { type: 'checkbox', checked: state.owners.has(o.id),
                     onchange: (e) => { if (e.target.checked) state.owners.add(o.id); else state.owners.delete(o.id); state.limit = PAGE; refresh(); } }),
                 dot(o.id), el('span', null, o.label), el('span', { class: 'org-owner-count' }, o.count)))),
-            el('h4', null, 'Provider'),
-            el('label', { class: ['org-check', 'org-private', known ? '' : 'is-disabled'],
-                title: 'OpenRouter sends each request to a company that hosts the model. With this on, only hosts that keep no copy of your images or text are used (the green shield on openrouter.ai), both in this list and when you run.' },
-            el('input', { type: 'checkbox', checked: Boolean(data.private_only), disabled: !known,
-                onchange: (e) => { const on = e.target.checked; saveSetting({ private_only: on }, () => { data.private_only = on; state.limit = PAGE; refresh(); }); } }),
-            icon('shield', { size: 15 }), 'Private providers only'),
-            el('p', { class: 'org-rail-note' }, known ? 'Keeps no copy of your images or text.' : 'OpenRouter’s list of private providers could not be loaded.'),
-            el('h4', null, 'Cost per 1,000 images'),
+            el('h4', null, 'Privacy'),
+            el('label', { class: ['org-check', 'org-private', known ? '' : 'is-disabled'] },
+                el('input', { type: 'checkbox', checked: Boolean(data.private_only), disabled: !known,
+                    onchange: (e) => { const on = e.target.checked; saveSetting({ private_only: on }, () => { data.private_only = on; state.limit = PAGE; refresh(); }); } }),
+                icon('shield', { size: 15 }), 'Zero-retention only',
+                infoTip(known ? 'Only use hosts that keep no copy of your images or text.' : 'Zero-retention list unavailable.', 'start')),
+            el('h4', null, 'Max cost / 1K'),
             el('div', { class: 'org-cost' },
-                el('input', { type: 'range', min: '0', max: String(COST_STEPS.length - 1), step: '1', value: String(state.cost), 'aria-label': 'Highest cost per 1,000 images',
+                el('input', { type: 'range', min: '0', max: String(COST_STEPS.length - 1), step: '1', value: String(state.cost), 'aria-label': 'Max cost per 1,000 images',
                     oninput: (e) => { state.cost = Number(e.target.value); out.textContent = text(); state.limit = PAGE; refresh(); } }), out),
             el('h4', null, 'Released'),
             el('select', { 'aria-label': 'Release date', onchange: (e) => { state.age = e.target.value; state.limit = PAGE; refresh(); } },
                 AGES.map(([v, label]) => el('option', { value: v, selected: v === state.age }, label))),
-            el('h4', null, 'Abilities'),
-            el('div', { class: 'org-stack' }, check('reasoning', 'Can think'), check('structured', 'Strict JSON'), check('hideFree', 'Hide free models')));
+            el('h4', null, 'Features'),
+            el('div', { class: 'org-stack' }, check('reasoning', 'Thinking'), check('structured', 'JSON'), check('hideFree', 'Hide free')));
     }
 
     function table(list) {
         const shown = list.slice(0, state.limit);
-        const cols = [['add', '', ''], ['name', 'Model', ''], ['tags', 'Abilities', ''], ['cost', '$ per 1,000', 'num'],
-            ['price', 'In · out $/1M', 'num'], ['context', 'Context', 'num'], ['new', 'Released', 'num']];
+        const cols = [['add', '', ''], ['name', 'Model', ''], ['tags', 'Features', ''], ['cost', 'Est. / 1K', 'num'],
+            ['price', '$/1M', 'num'], ['context', 'Context', 'num'], ['new', 'Released', 'num']];
         const next = { name: 'name', cost: state.sort === 'cost' ? 'cost_desc' : 'cost', context: 'context', new: state.sort === 'new' ? 'old' : 'new' };
         const active = { name: 'name', cost: 'cost', cost_desc: 'cost', context: 'context', new: 'new', old: 'new' }[state.sort];
         const dir = ['cost', 'old', 'name'].includes(state.sort) ? 'ascending' : 'descending';
@@ -240,17 +239,18 @@ export function mountOpenRouterGallery(host, provider) {
             el('thead', null, el('tr', null, cols.map(([id, label, cls]) => el('th', { scope: 'col', class: cls || null, 'aria-sort': active === id ? dir : null },
                 next[id]
                     ? el('button', { type: 'button', onclick: () => { state.sort = next[id]; refresh(); } }, label, active === id ? (dir === 'ascending' ? ' ▲' : ' ▼') : '')
-                    : (label || el('span', { class: 'visually-hidden' }, 'Add')))))),
+                    : (label || el('span', { class: 'visually-hidden' }, 'Add')),
+                id === 'cost' ? infoTip('Estimated cost per 1,000 images (typical to long labels; excludes thinking).', 'end') : null)))),
             el('tbody', null, shown.map((m) => {
                 const c = cost(m);
                 return el('tr', { class: data.added.includes(m.id) ? 'is-added' : null },
                     el('td', { class: 'nowrap' }, addButton(m)),
                     el('td', { title: m.description || null }, el('div', { class: 'org-name' }, m.name), el('div', { class: 'org-sub' }, dot(m.owner), ' ', m.owner_label)),
                     el('td', { class: 'nowrap' }, tags(m)),
-                    el('td', { class: 'num' }, el('b', null, usd(c.typical)), c.typical ? el('div', { class: 'org-sub' }, `to ${usd(c.high)}`) : null),
+                    el('td', { class: 'num' }, el('b', null, usd(c.typical)), c.typical ? el('div', { class: 'org-sub' }, `–${usd(c.high)}`) : null),
                     el('td', { class: 'num' }, m.free ? 'Free' : `${perM(m.price_in)} · ${perM(m.price_out)}`),
                     el('td', { class: 'num' }, ctx(m.context_length)),
-                    el('td', { class: 'num' }, released(m), el('div', { class: 'org-sub' }, ago(m))));
+                    el('td', { class: 'num' }, released(m)));
             })))),
         shown.length < list.length
             ? el('button', { type: 'button', class: 'button-secondary org-more', onclick: () => { state.limit += 150; refresh(); } }, `Show more (${list.length - shown.length} left)`)
@@ -259,17 +259,14 @@ export function mountOpenRouterGallery(host, provider) {
 
     function refresh() {
         const list = filtered();
-        const word = { ocr: 'OCR', parse: 'parsing', both: 'OCR and parsing' }[state.role];
         const narrowed = state.owners.size || state.q || COST_STEPS[state.cost] !== null || state.age !== 'any' || state.reasoning || state.structured;
         replace(results,
-            el('p', { class: 'org-count' }, el('b', null, list.length), ` model${list.length === 1 ? '' : 's'} can do ${word}`,
-                data.private_only ? ' through a private provider' : '',
-                list.length > state.limit ? ` · showing the first ${state.limit}` : '',
+            el('p', { class: 'org-count' }, el('b', null, list.length), ` model${list.length === 1 ? '' : 's'}`,
+                list.length > state.limit ? ` · first ${state.limit}` : '',
                 narrowed ? [' · ', el('button', { type: 'button', class: 'link-button', onclick: () => {
                     state.owners.clear(); state.q = ''; state.cost = COST_STEPS.length - 1; state.age = 'any'; state.reasoning = false; state.structured = false; build();
-                } }, 'Clear filters')] : null),
-            list.length ? table(list) : el('div', { class: 'org-empty' }, 'No models match these filters.'),
-            el('p', { class: 'org-foot' }, 'Cost per 1,000 images uses the token counts of the VoucherVisionGO cost calculator and each model’s OpenRouter price. The lower number is for typical labels, the higher for long ones. Thinking is extra.'));
+                } }, 'Clear')] : null),
+            list.length ? table(list) : el('div', { class: 'org-empty' }, 'No matching models.'));
     }
 
     function build() {

@@ -8,13 +8,13 @@ import { mountMonitor } from './monitor.js';
 import { installUpdate, onUpdate, startUpdates } from './updates.js';
 
 const TABS = [
-    { id: 'vvl', label: 'VVL', title: 'Process specimen images', module: './tabs/vvl.js' },
-    { id: 'models', label: 'Models', title: 'Local and API models', module: './tabs/models.js' },
-    { id: 'keys', label: 'Keys', title: 'API keys and tokens', module: './tabs/keys.js' },
-    { id: 'prompts', label: 'Prompts', title: 'Prompt templates', module: './tabs/prompts.js' },
-    { id: 'engine', label: 'Engine', title: 'This computer and the local engine', module: './tabs/engine.js' },
+    { id: 'vvl', label: 'VVL', title: 'Process images', module: './tabs/vvl.js' },
+    { id: 'models', label: 'Models', title: 'Models', module: './tabs/models.js' },
+    { id: 'keys', label: 'Keys', title: 'API keys', module: './tabs/keys.js' },
+    { id: 'prompts', label: 'Prompts', title: 'Prompts', module: './tabs/prompts.js' },
+    { id: 'engine', label: 'Engine', title: 'System & engine', module: './tabs/engine.js' },
     // No button in the tab bar: opened from the version number in the header, by #setup, and on first run.
-    { id: 'setup', label: 'Setup', title: 'Set up VoucherVisionLocal', module: './tabs/setup.js', hidden: true },
+    { id: 'setup', label: 'Setup', title: 'Setup', module: './tabs/setup.js', hidden: true },
 ];
 
 const loaded = new Map(); // tab id -> Promise<controller>
@@ -46,8 +46,8 @@ function applyTheme(theme, { persist = true } = {}) {
     if (btn) {
         const dark = theme === 'dark';
         btn.setAttribute('aria-pressed', String(dark));
-        btn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
-        btn.title = dark ? 'Switch to light theme' : 'Switch to dark theme';
+        btn.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode');
+        btn.title = dark ? 'Light mode' : 'Dark mode';
     }
     if (persist) prefs.set('theme', theme);
 }
@@ -197,14 +197,14 @@ async function activate(id, target = null, { focus = false, updateHash = false }
     const panel = document.getElementById(`panel-${def.id}`);
     if (!loaded.has(def.id)) {
         panel.dataset.state = 'loading';
-        replace(panel, stateBox('loading', `Loading ${def.label}…`));
+        replace(panel, stateBox('loading', 'Loading…'));
         loaded.set(def.id, import(def.module).then((mod) => mod.mount(panel)).catch((err) => {
             loaded.delete(def.id);
             panel.dataset.state = 'error';
             replace(panel, el('div', { class: 'state-box state-error', role: 'alert' },
                 icon('alert', { size: 20 }),
                 el('div', { class: 'state-body' },
-                    el('div', { class: 'state-title' }, `The ${def.label} tab could not be loaded`),
+                    el('div', { class: 'state-title' }, `Could not load ${def.label}`),
                     el('div', { class: 'state-detail' }, describeError(err)))));
             throw err;
         }));
@@ -221,7 +221,7 @@ function renderHeaderInfo(info) {
     const ver = document.getElementById('appVersion');
     if (ver && info && info.version) {
         ver.textContent = `v${info.version}`;
-        ver.setAttribute('aria-label', `Version ${info.version}: setup and updates`);
+        ver.setAttribute('aria-label', `v${info.version} setup`);
     }
 }
 
