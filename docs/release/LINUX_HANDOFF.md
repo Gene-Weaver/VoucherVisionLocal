@@ -178,3 +178,28 @@ Checked on Ubuntu 22.04, x86_64 (Threadripper PRO 5975WX, libfuse2 installed).
 Bump `VERSION` to `0.2.0`, commit, push, `./deploy.sh`. Then on both machines:
 start 0.1.2, take the update, and check that the first start of 0.2.0 re-runs the
 Python setup (`uv.lock` changed) and then downloads the label detector.
+
+## Done on the Mac (0.2.0, 2026-11-21)
+
+- **Released v0.2.0** (`cf16814`): Apple Silicon DMG and zip (signed, notarized,
+  stapled), the unsigned Windows installer and the AppImage, with all three updater
+  feeds pointing at 0.2.0. The release notes start with a short "What's new".
+- **Tests on the Mac:** 711 passed, 4 skipped, 0 failed (the two engine tests pass
+  now); the real-model detector tests pass in both formats.
+- **Update 0.1.0 -> 0.2.0** on a scratch copy of the released 0.1.0: differential
+  download (3.6 MB of 131 MB), installed on quit. The first start of 0.2.0 re-ran
+  the Python setup (new `uv.lock`), downloaded the detector by itself in 12 s
+  (Core ML, Apple GPU), and a demo run returned `text_collage: "True"` with 7
+  label and 1 barcode boxes. The owner's installed 0.1.2 took the update the
+  normal way. The Setup page and the "Label detector · 21%" pill look right.
+- **Gotcha for update tests on macOS:** quit by closing the window, not with
+  SIGTERM. A SIGTERM in the first ~15 s after "Update ready" (while Squirrel is
+  still staging the update) held the quit until Squirrel finished, and ShipIt then
+  relaunched the app through LaunchServices, without the test's `VVL_*` settings.
+  A window close at that moment quits at once, and the update installs at a later
+  quit.
+
+**Next on Linux:** start the v0.1.2 AppImage with scratch folders, take the update
+to 0.2.0, and check that its first start re-runs the Python setup and then
+downloads the label detector. Kept onnxruntime (not OpenVINO) on Linux and
+Windows, as measured above; the owner may still choose OpenVINO.
