@@ -17,16 +17,19 @@ This file only records provenance.
 | `vvl/vendor_vv/*.py` | VoucherVision `vouchervision/` (`prompt_catalog.py`, `OCR_sanitize.py`, `OCR_resize_for_VLMs.py`, `OCR_Prompt_Catalog.py`, `general_utils_slim.py`, `vouchervision_main_slim.py`) | `78753a4` |
 | `vvl/registry/api_cost.yaml` | VoucherVision `api_cost/api_cost.yaml` | `78753a4` |
 | `prompts/builtin/*.yaml` (18 files) | VoucherVision `custom_prompts/` (git-tracked files only) | `78753a4` |
-| `textcollage/CollageEngine.py`, `textcollage/models/openvino/*` | TextCollage (working tree, based on `4b697e8`) | `4b697e8` |
+| `textcollage/CollageEngine.py` | TextCollage (working tree, based on `4b697e8`) | `4b697e8` |
+| `textcollage/detector.py` (ported) | LeafMachine3 `leafmachine3/inference/ultra_replacements.py`, `coreml_native.py` | `c1bdf85` |
 | `ui/` (page structure, styles, scripts) | VoucherVisionGO `webpage/` | `2658891` |
 
 Local edits to copied files: `vvl/vendor_vv/prompt_catalog.py` opens prompt
 files as UTF-8 explicitly (Windows default encodings broke non-ASCII prompts),
-and `textcollage/CollageEngine.py` blocks OpenVINO's import-time Google
-Analytics telemetry for this process before importing `openvino`.
+and `textcollage/CollageEngine.py` takes its boxes from `textcollage/detector.py`
+(LeafMachine3's archival detector) instead of TextCollage's bundled OpenVINO
+YOLOv12n model, which VVL no longer carries.
 
-The TextCollage detector weights (`textcollage/models/openvino/`) are an
-Ultralytics YOLO export and carry the AGPL-3.0 license noted in their
-`metadata.yaml`.
+The detector weights are not in this repo. VVL downloads them at first start
+from Hugging Face (`phyloforfun/lm3_archival_detector__yolo26x_det_1280`, pinned
+in `vvl/registry/archival_detector.lock.yaml`); they are an Ultralytics YOLO26
+model under AGPL-3.0.
 
 Add a row here whenever another file is copied in.

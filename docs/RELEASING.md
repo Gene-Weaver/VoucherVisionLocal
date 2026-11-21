@@ -17,10 +17,11 @@ latest GitHub release.
 
 The `.blockmap` files let the updaters download only the parts that changed.
 
-**No Intel Mac build.** `onnxruntime` 1.32.0, `openvino` 2026.4.1 and
-`pymupdf` 2.1 in `uv.lock` have no macOS x86_64 wheels (the first two have no
-source package either), so `uv sync` fails on an Intel Mac and the first-launch
-setup cannot finish. Checked under Rosetta on 2026-11-20. To bring Intel back:
+**No Intel Mac build.** `pymupdf` 2.1 and its dependency `onnxruntime` 1.32.0
+have no macOS x86_64 wheels (onnxruntime has no source package either), so
+`uv sync` fails on an Intel Mac and the first-launch setup cannot finish.
+Checked under Rosetta on 2026-11-20 (0.1.0 also had `openvino`, now gone; the
+label detector uses Core ML on a Mac, and `coremltools` has Intel wheels). To bring Intel back:
 add `sys_platform == 'darwin' and platform_machine == 'x86_64'` to
 `tool.uv.required-environments` in `pyproject.toml` (uv then locks versions
 that have Intel wheels, or says none exist), re-lock, add `x64` to the `mac`
@@ -45,6 +46,9 @@ The pinned pieces move only with a release:
 - uv (bundled in the installer): `desktop/bundled-uv.json` (version + sha256 per target).
 - llama.cpp: `vvl/llama/engine.lock.yaml`. The Setup page offers an engine
   update when an installed engine differs from the pinned one.
+- The TextCollage label detector: `vvl/registry/archival_detector.lock.yaml`
+  (Hugging Face revision + sha256 of every file). Downloaded at first start into
+  `<data>/detector/`; a new revision downloads once after the update.
 - Electron, electron-builder, electron-updater: exact versions in `desktop/package.json`.
 
 ## Releasing (on the Mac)

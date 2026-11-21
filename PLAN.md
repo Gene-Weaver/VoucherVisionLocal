@@ -14,6 +14,9 @@ through a managed llama.cpp server or through the user's own API keys.
   also serves the UI, so the same UI works in a browser.
 - Python dependencies are managed and locked with uv. No torch, transformers, or
   langchain.
+- TextCollage's label detector is LeafMachine3's archival detector (YOLO26x),
+  downloaded at first start: Core ML on macOS, onnxruntime on the CPU elsewhere.
+  No OpenVINO.
 - All keys live only in the gitignored `PRIVATE.yaml`.
 - Model and engine files live outside the repo (`models_dir` in settings).
 - Enrichment helpers (elevation, World Flora Online) go through the hosted

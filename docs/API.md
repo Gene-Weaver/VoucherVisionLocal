@@ -507,7 +507,6 @@ with null fields, `gpus: []`, and a warning with code `SYSTEM_CHECK_UNAVAILABLE`
   `VoucherVisionLocal <version> is running. Open: http://127.0.0.1:<port>/?token=…`
 - Extra environment variable: `VVL_PROMPTS_USER_DIR` (user prompt folder), for
   tests and scratch runs.
-- OpenVINO's usage telemetry is blocked inside the VVL process.
 
 ### System report additions (`vvl/system`)
 
@@ -571,7 +570,7 @@ any job is active.
  "started_at": "…", "finished_at": null}
 ```
 
-- `kind`: `model_download | engine_install`.
+- `kind`: `model_download | engine_install | detector_download` (section 15).
 - `state`: `queued | running | verifying | done | error | canceled`.
 - `files[].state`: `pending | running | verifying | done | skipped | error`
   (`skipped` = already present and verified).
@@ -898,7 +897,8 @@ finished; an unknown, used, or expired token (3 days) is 404
 | 2 engines x 4 slots, same card | 9.2 | 5.4 |
 | 2 engines x 4 slots, one per card | not run | 9.8 |
 
-Label detection takes about 0.2 s per image and is not a bottleneck.
+Label detection (section 15) takes about 0.3 s per image with Core ML on an M2 Pro and
+about 1.3 s with onnxruntime on its CPU; it is not a bottleneck next to OCR.
 
 ## 12. Download queue and split model files
 
@@ -1103,3 +1103,39 @@ The key itself is never returned.
 
 Gemini, Anthropic, and OpenAI stay listed as providers that cannot run yet;
 their models are reachable through OpenRouter.
+
+## 15. Label detector (`/v1/detector`)
+
+TextCollage's boxes come from LeafMachine3's archival detector (YOLO26x at 1280,
+end2end, nine classes: Ruler, Barcode, Colorcard, Label, Map, Envelope, Photo,
+Attached Item, Weights; `Label`, `Barcode` and `Map` go into the collage). It is
+pinned in `vvl/registry/archival_detector.lock.yaml` and not bundled:
+
+- `vvl serve` starts its download at first start (job kind `detector_download`,
+  label "Label detector"; `VVL_DETECTOR_AUTO_DOWNLOAD=0` turns that off). Files go
+  to `<VVL_HOME>/detector/<repo>@<revision>/`; each is checked by sha256, then
+  `verified.json` records them. After the job, the processor loads the detector.
+- Format: `coreml_fp32` on macOS (Core ML, Apple GPU, 223 MB), `onnx` elsewhere
+  (onnxruntime, CPU, 224 MB). `VVL_DETECTOR_FORMAT` overrides it.
+- Until it is installed (or when it fails to load), `/process` uses the whole
+  image: `success.text_collage` is `"False"` and `position_original` is `{}`.
+  No request fails because of the detector.
+
+`GET /v1/detector` →
+
+```json
+{"state": "installed", "format": "coreml_fp32", "runtime": "Core ML, Apple GPU",
+ "repo": "phyloforfun/lm3_archival_detector__yolo26x_det_1280", "revision": "cf178fe…",
+ "size_bytes": 222904317, "path": "…/detector/lm3_archival_detector__yolo26x_det_1280@cf178fe1d447",
+ "job": null, "error": null,
+ "loaded": true, "loaded_runtime": "Core ML, Apple GPU", "load_error": null}
+```
+
+- `state`: `not_installed | downloading | installed | error` (`error` = the last
+  download failed; `error` is its `{code, message}`).
+
+`POST /v1/detector/install` → 202 `{"job": Job}`: starts (or retries) the
+download, or returns the job already running. 409 `CONFLICT` when installed.
+
+`vvl detector [--download] [--format coreml_fp32|onnx]` shows the same state from
+the command line and can download the files in the foreground.
