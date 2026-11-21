@@ -138,7 +138,7 @@ def test_put_and_delete_keys_routes(client, auth, vvl_env):
     assert response.status_code == 200
     assert response.get_json()["configured"] is False
     assert response.get_json()["fields"][0] == {
-        "name": "api_key", "label": "Gemini API key", "placeholder": "Paste your Google AI Studio key",
+        "name": "api_key", "label": "Gemini API key", "placeholder": "AIza…",
         "saved": False, "masked": None,
     }
 

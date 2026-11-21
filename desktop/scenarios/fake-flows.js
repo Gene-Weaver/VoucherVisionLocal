@@ -162,9 +162,9 @@ module.exports = async function fakeFlows(t) {
     if (boxes.length) boxes[boxes.length - 1].click();
     return true;
   })()`);
-  await js(`window.__t.byText('#panel-engine button', 'Save').click(); true`);
+  await js(`window.__t.byText('#panel-engine .engine-actions button', 'Save').click(); true`);
   await waitFor(`[...document.querySelectorAll('.toast')].some((n) => n.textContent.includes('Saved.'))`, 'the settings to save');
-  await js(`window.__t.byText('#panel-engine button', 'Save').scrollIntoView({ block: 'end' }); true`);
+  await js(`window.__t.byText('#panel-engine .engine-actions button', 'Save').scrollIntoView({ block: 'end' }); true`);
   await shoot('16-engine-settings-saved');
 
   // ------------------------------------------------------------ start, log, run
