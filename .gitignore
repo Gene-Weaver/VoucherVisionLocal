@@ -57,3 +57,6 @@ scratch_designs/
 
 # ---- local planning notes ----
 TODO.html
+
+# ---- editor and agent temp files ----
+*.tmp.*
