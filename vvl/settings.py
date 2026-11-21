@@ -6,6 +6,7 @@ are atomic (temp file + rename).
 
 Shape (docs/API.md, GET/PUT /v1/settings):
     models_dir: absolute path
+    output_dir: absolute path (where runs are saved; null = <VVL_HOME>/runs)
     selection:  {ocr: [model_id, ...], parse: model_id}
     enrichment: {elevation: bool, wfo_source: off | vvgo | local}
     ui:         {theme: light | dark | system}
@@ -42,7 +43,7 @@ THEMES = ("light", "dark", "system")
 SETUP_USAGES = ("openrouter", "local", "both")
 MAX_OCR_ENGINES = 4
 
-ALLOWED_KEYS = ("models_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup")
+ALLOWED_KEYS = ("models_dir", "output_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup")
 NESTED_KEYS = {
     "selection": ("ocr", "parse"),
     "enrichment": ("elevation", "wfo_source"),
@@ -78,6 +79,7 @@ ENGINE_MAX_GPU_INDEX = 63
 
 DEFAULTS: dict[str, Any] = {
     "models_dir": None,  # None means <VVL_HOME>/models
+    "output_dir": None,  # None means <VVL_HOME>/runs (vvl/outputs.py)
     "selection": {"ocr": [DEMO_MODEL_ID], "parse": DEMO_MODEL_ID},
     "enrichment": {"elevation": True, "wfo_source": "off"},
     "ui": {"theme": "dark"},
@@ -148,6 +150,10 @@ def _sanitize_loaded(settings: dict) -> dict:
         clean["models_dir"] = _validate_models_dir(clean.get("models_dir")) if clean.get("models_dir") else None
     except SettingsError:
         clean["models_dir"] = None
+    try:
+        clean["output_dir"] = _validate_dir("output_dir", clean.get("output_dir")) if clean.get("output_dir") else None
+    except SettingsError:
+        clean["output_dir"] = None
     sel = clean.get("selection") or {}
     ocr = sel.get("ocr")
     if isinstance(ocr, str):
@@ -285,6 +291,10 @@ def load(path: Path | None = None) -> dict:
         settings = _sanitize_loaded(_merge(DEFAULTS, _read_file(path)))
     if not settings["models_dir"]:
         settings["models_dir"] = str(paths.default_models_dir())
+    if not settings["output_dir"]:
+        from vvl import outputs
+
+        settings["output_dir"] = str(outputs.default_dir())
     return settings
 
 
@@ -292,15 +302,19 @@ def models_dir(path: Path | None = None) -> str:
     return load(path)["models_dir"]
 
 
-def _validate_models_dir(value: Any) -> str:
+def _validate_dir(field: str, value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise SettingsError("models_dir must be a non-empty string.", {"field": "models_dir"})
+        raise SettingsError(f"{field} must be a non-empty string.", {"field": field})
     expanded = os.path.expanduser(value.strip())
     if not os.path.isabs(expanded):
-        raise SettingsError("models_dir must be an absolute path.", {"field": "models_dir"})
+        raise SettingsError(f"{field} must be an absolute path.", {"field": field})
     if "\x00" in expanded or len(expanded) > 1024:
-        raise SettingsError("models_dir is not a valid path.", {"field": "models_dir"})
+        raise SettingsError(f"{field} is not a valid path.", {"field": field})
     return os.path.normpath(expanded)
+
+
+def _validate_models_dir(value: Any) -> str:
+    return _validate_dir("models_dir", value)
 
 
 def _validate_selection(value: Any, validate_ids: Callable[[list[str], str], None] | None) -> dict:
@@ -397,6 +411,9 @@ def validate_update(update: Any, validate_ids: Callable[[list[str], str], None] 
     changes: dict[str, Any] = {}
     if "models_dir" in update:
         changes["models_dir"] = _validate_models_dir(update["models_dir"])
+    if "output_dir" in update:
+        # null goes back to the default folder (<VVL_HOME>/runs).
+        changes["output_dir"] = None if update["output_dir"] is None else _validate_dir("output_dir", update["output_dir"])
     if "selection" in update:
         changes["selection"] = _validate_selection(update["selection"], validate_ids)
     if "enrichment" in update:

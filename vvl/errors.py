@@ -43,6 +43,9 @@ ERROR_CODES = frozenset({
     "NETWORK_ERROR", "HTTP_ERROR", "EXTRACT_FAILED", "DOWNLOAD_FAILED",
     # two-pass batches
     "STAGE_NOT_FOUND",
+    # Saved results (vvl/outputs.py).
+    "OUTPUT_DIR_UNAVAILABLE",
+    "OUTPUT_BATCH_NOT_FOUND",
     # anything else
     "INTERNAL_ERROR",
 })

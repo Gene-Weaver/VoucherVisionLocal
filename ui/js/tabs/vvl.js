@@ -12,6 +12,7 @@ import { parseCsv, toCsv } from '../lib/csv.js';
 import { makeZip } from '../lib/zip.js';
 import { createMap } from '../lib/leaflet-map.js';
 import { mountGenSettings } from './gen_settings.js';
+import { folderPreview, loadOutput, openFolderButton } from '../output_folder.js';
 
 // A local model can take minutes (the first request also loads it), and a PDF
 // has many pages, so processing requests are never cut off by a timer here.
@@ -642,6 +643,95 @@ export async function mount(panel) {
         return form;
     }
 
+    // ------------------------------------------------------------ saved results
+    // Every press of Run saves into its own folder inside the results folder (Setup
+    // page): POST /v1/output/batches before the run, its id with every request, and
+    // .../finish after it. See vvl/outputs.py.
+    const outputDir = el('code', { class: 'setup-path output-dir' }, '…');
+    const outputName = el('input', {
+        type: 'text', id: 'outputFolderName', class: 'output-name', maxlength: '100', spellcheck: 'false', autocomplete: 'off',
+        placeholder: 'optional', value: String(prefs.get('outputName', '') || ''),
+    });
+    const outputAppend = el('input', { type: 'checkbox', id: 'outputAppend', checked: Boolean(prefs.get('outputAppend', false)) });
+    const outputPreview = el('code', { class: 'output-preview' });
+    const outputWarning = el('div', { class: 'notice notice-warn output-warning', role: 'alert', hidden: true }, icon('alert', { size: 18 }),
+        el('span', null, 'Files already in this folder are replaced by new files with the same name.'));
+    const outputSaved = el('div', { class: 'output-saved', role: 'status', hidden: true });
+    function showOutputChoice() {
+        outputPreview.textContent = folderPreview(outputName.value, outputAppend.checked);
+        outputWarning.hidden = !outputAppend.checked;
+    }
+    outputName.addEventListener('input', () => {
+        prefs.set('outputName', outputName.value.trim());
+        showOutputChoice();
+    });
+    outputAppend.addEventListener('change', () => {
+        prefs.set('outputAppend', outputAppend.checked);
+        showOutputChoice();
+    });
+    async function loadOutputDir() {
+        try {
+            outputDir.textContent = (await loadOutput()).dir;
+        } catch (_) {
+            outputDir.textContent = 'unknown';
+        }
+    }
+    on('output-changed', loadOutputDir);
+    const outputBar = el('div', { class: 'output-bar' },
+        el('div', { class: 'output-row' },
+            el('span', { class: 'output-label' }, 'Save to', infoTip('Each run is saved in its own folder: json, xlsx, label_collage, input_image and ocr_txt.', 'start')),
+            outputDir,
+            el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('setup') }, 'Change')),
+        el('div', { class: 'output-row' },
+            el('label', { class: 'output-label', for: outputName.id }, 'Folder name'),
+            outputName,
+            el('label', { class: 'check-row', for: outputAppend.id }, outputAppend, 'Add to this folder',
+                infoTip('Off: every run gets a new folder, named with the date and time. On: the run is added to the folder with exactly this name.'))),
+        el('div', { class: 'output-row output-row-preview' }, el('span', { class: 'output-label' }, 'This run'), outputPreview),
+        outputWarning,
+        outputSaved);
+    showOutputChoice();
+    loadOutputDir();
+
+    /** Start this run's results folder. Null (after telling the user) when it cannot be made. */
+    async function startOutput() {
+        const name = outputName.value.trim();
+        if (outputAppend.checked && !name) {
+            toast('Name the folder to add to.', 'warning');
+            outputName.focus();
+            return null;
+        }
+        try {
+            return await api.post('/v1/output/batches', { name: name || null, append: outputAppend.checked });
+        } catch (err) {
+            toastError(err, 'The results folder could not be made');
+            return null;
+        }
+    }
+
+    /** Finish the run's folder (the spreadsheet is written a last time) and say where it is. */
+    async function finishOutput(batch) {
+        if (!batch) return;
+        let summary = null;
+        try {
+            summary = await api.post(`/v1/output/batches/${encodeURIComponent(batch.id)}/finish`, {});
+        } catch (err) {
+            toastError(err, 'The results folder could not be finished');
+        }
+        const path = (summary && summary.path) || batch.path;
+        const saved = (summary && summary.saved) || {};
+        const errors = (summary && summary.errors) || [];
+        const count = Number(saved.json) || 0;
+        replace(outputSaved,
+            icon(errors.length ? 'alert' : 'check', { size: 15 }),
+            el('span', null, count ? `Saved ${count} result${count === 1 ? '' : 's'} to ` : 'Nothing was saved in '),
+            el('code', { class: 'setup-path' }, path),
+            openFolderButton(path),
+            errors.length ? el('span', { class: 'output-errors' }, `${errors.length} file${errors.length === 1 ? '' : 's'} could not be saved: ${errors[0]}`) : null);
+        outputSaved.hidden = false;
+        if (errors.length) toast('Some result files could not be saved.', 'error');
+    }
+
     // ------------------------------------------------------------ step 5: results
     const historySelect = el('select', { id: 'resultHistorySelect', onchange: () => showResult(history[Number(historySelect.value)]) });
     const historyBar = el('div', { class: 'result-history-bar', hidden: true }, el('label', { for: 'resultHistorySelect' }, 'History:'), historySelect);
@@ -900,6 +990,12 @@ export async function mount(panel) {
         const fields = requestFields();
         if (!fields) return;
         setBusy(true);
+        const batch = await startOutput();
+        if (!batch) {
+            setBusy(false);
+            return;
+        }
+        fields.push(['output_batch', batch.id]);
         const stage = el('div', { class: 'vv-loader-stage', role: 'status' });
         const clock = el('span', { class: 'vv-loader-time', 'aria-hidden': 'true' });
         replace(resultsArea, el('div', { class: 'vv-loader' }, el('span', { class: 'spinner', 'aria-hidden': 'true' }),
@@ -925,6 +1021,7 @@ export async function mount(panel) {
             inlineError(resultsArea, err, { title: `Could not process ${label}` });
         } finally {
             stopWatching();
+            await finishOutput(batch);
             setBusy(false);
         }
     }
@@ -1095,6 +1192,12 @@ export async function mount(panel) {
         const fields = requestFields();
         if (!fields) return;
         setBusy(true);
+        const batch = await startOutput();
+        if (!batch) {
+            setBusy(false);
+            return;
+        }
+        fields.push(['output_batch', batch.id]);
         const concurrency = Number(ui.slider.value) || 1;
         // Two passes when the engine says so (models that cannot be loaded together,
         // or the Engine setting), and only when there is a parsing step with a local model.
@@ -1191,7 +1294,7 @@ export async function mount(panel) {
         // engine swaps models once per batch instead of twice per image.
         async function twoPasses() {
             const tokens = new Map();
-            const finishFields = Object.fromEntries(fields.filter(([k]) => ['llm_model', 'prompt', 'include_wfo', 'include_cop90', 'llm_thinking_level'].includes(k)));
+            const finishFields = Object.fromEntries(fields.filter(([k]) => ['llm_model', 'prompt', 'include_wfo', 'include_cop90', 'llm_thinking_level', 'output_batch'].includes(k)));
             phase = 'Reading labels';
             update();
             await pass(items.map((_, i) => i), (i) => api.postForm(items[i].file ? '/process' : '/process-url',
@@ -1231,6 +1334,7 @@ export async function mount(panel) {
             const finished = results.filter(Boolean);
             if (notice) ui.results.prepend(el('div', { class: 'notice notice-demo', role: 'alert' }, icon('alert', { size: 20 }), el('span', null, notice)));
             batchDownloads(ui, finished, tag);
+            await finishOutput(batch);
             setBusy(false);
         }
     }
@@ -1376,6 +1480,7 @@ export async function mount(panel) {
         ],
     });
     const step4 = step(4, 'Input',
+        outputBar,
         el('div', { class: 'step4-split' },
             el('div', { class: 'step4-left' }, inputTabs.list, inputTabs.panels),
             el('div', { class: 'step4-right' }, el('h4', null, 'Preview'), previewArea)));

@@ -14,7 +14,7 @@ pytestmark = pytest.mark.usefixtures("no_network")
 
 def test_defaults_without_file(client, auth, vvl_env):
     body = client.get("/v1/settings", headers=auth).get_json()
-    assert set(body) == {"models_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup"}
+    assert set(body) == {"models_dir", "output_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup"}
     assert body["setup"] == {"usage": None}
     assert body["generation"] == {
         "ocr": {"reasoning": "off", "strength": "high", "output_length": "standard", "image_detail": "standard"},
@@ -25,6 +25,7 @@ def test_defaults_without_file(client, auth, vvl_env):
     assert body["enrichment"] == {"elevation": True, "wfo_source": "off"}
     assert body["ui"]["theme"] in settings.THEMES
     assert body["models_dir"] == str(vvl_env["VVL_HOME"] / "models")
+    assert body["output_dir"] == str(vvl_env["VVL_HOME"] / "runs")
     assert not vvl_env["VVL_SETTINGS_PATH"].exists()
 
 

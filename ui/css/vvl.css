@@ -1330,3 +1330,16 @@ table.org-table tr.is-added td { background: var(--accent-soft); }
     .pd-default-adder { grid-template-columns: 1fr; }
     .pd-diff-header-grid, .pd-diff-row { grid-template-columns: 1fr; }
 }
+
+/* ---------------------------------------------------------------- Saved results (VVL tab, above the inputs) */
+.output-bar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; }
+.output-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.output-label { display: inline-flex; align-items: center; min-width: 96px; color: var(--muted); font-size: 0.88rem; }
+.output-bar input.output-name { width: 240px; max-width: 100%; flex: 0 1 240px; }
+.output-bar .check-row { margin: 0; }
+.output-dir, .output-preview { overflow-wrap: anywhere; }
+.output-preview { font-family: var(--mono); font-size: 0.84rem; }
+.output-warning { margin: 0; }
+.output-saved { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.9rem; }
+.output-saved[hidden] { display: none; }
+.output-errors { color: var(--danger, #c0392b); flex-basis: 100%; }

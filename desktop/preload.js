@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('vvlDesktop', {
   openExternal: (url) => ipcRenderer.invoke('vvl:open-external', String(url)),
   /** Ask the user for a folder. Resolves its path, or null when canceled. */
   pickFolder: () => ipcRenderer.invoke('vvl:pick-folder'),
+  /** Show a folder in the system file manager. Resolves true when it was opened. */
+  openFolder: (folder) => ipcRenderer.invoke('vvl:open-folder', String(folder)),
   platform: process.platform,
   appVersion: arg('vvl-app-version'),
   /** True in the installed app (false when run from a source checkout). */

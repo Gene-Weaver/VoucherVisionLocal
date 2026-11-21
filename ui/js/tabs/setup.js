@@ -15,6 +15,7 @@ import { el, icon, replace, externalLink, fmtBytes, fmtMemory } from '../dom.js'
 import { emit, getAppInfo, gotoTab, loadSettings, on, updateCachedSettings } from '../state.js';
 import { activeJob, allJobs, isActive, jobError, progressView, refreshJobs, trackJob } from '../jobs.js';
 import { mountModelsFolder } from '../models_folder.js';
+import { mountOutputFolder, openFolderButton } from '../output_folder.js';
 import { describeUpdate, installUpdate, onUpdate } from '../updates.js';
 
 const CHOICES = [
@@ -101,7 +102,7 @@ export async function mount(panel) {
         modelBusy: false, modelProblem: null,
         detectorBusy: false, detectorProblem: null,
         gpuBusy: false, gpuProblem: null,
-        folderOpen: false, choosing: null,
+        folderOpen: false, outputOpen: false, choosing: null,
     };
     let update = { status: 'unavailable' };
 
@@ -159,6 +160,8 @@ export async function mount(panel) {
     });
     const folderHost = el('div', { class: 'setup-folder-card' });
     let folderMounted = false;
+    const outputHost = el('div', { class: 'setup-folder-card' });
+    let outputMounted = false;
     const engineProgress = progressView('Engine install progress');
     const modelProgress = progressView('Model download progress');
     const detectorProgress = progressView('Label detector download progress');
@@ -360,6 +363,33 @@ export async function mount(panel) {
     }
 
     /** The label detector on an NVIDIA GPU: only on computers with one (null elsewhere). */
+    // Where every run is saved. There is always a folder (the default is the app's
+    // own "runs" folder), so this step is done from the start; it is here to be changed.
+    function outputItem() {
+        const dir = (data.settings && data.settings.output_dir) || '';
+        if (ui.outputOpen && !outputMounted) {
+            outputMounted = true;
+            mountOutputFolder(outputHost, {
+                onSaved: async () => {
+                    await loaders.settings();
+                    render();
+                },
+            });
+        }
+        return {
+            id: 'output', status: 'done', title: 'Results folder',
+            text: ui.outputOpen ? null : 'Each run is saved in its own dated folder here.',
+            path: ui.outputOpen ? null : dir,
+            tip: 'Each press of Run makes a folder named with the date and time (YYYYMMDD-HH-MM-SS), holding json, xlsx, '
+                + 'label_collage, input_image and ocr_txt. Name the folder, or add to an existing one, beside the Run button.',
+            action: el('span', { class: 'row' },
+                ui.outputOpen ? null : openFolderButton(dir, 'Open'),
+                button(ui.outputOpen ? 'Close' : 'Change', () => { ui.outputOpen = !ui.outputOpen; render(); }, { primary: false })),
+            extra: ui.outputOpen ? outputHost : null,
+            required: false,
+        };
+    }
+
     function gpuItem() {
         const d = data.detector;
         const g = d && d.gpu;
@@ -598,7 +628,7 @@ export async function mount(panel) {
 
     function items() {
         // The app, Python and the label detector are needed whatever the choice, so they show before it.
-        const list = [appItem(), pythonItem(), detectorItem(), gpuItem()].filter(Boolean);
+        const list = [appItem(), pythonItem(), detectorItem(), gpuItem(), outputItem()].filter(Boolean);
         if (wantsCloud()) list.push(keyItem(), pickItem());
         if (wantsLocal()) list.push(systemItem(), folderItem(), engineItem(), modelItem());
         return list;

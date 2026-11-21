@@ -752,6 +752,16 @@ function setupApp() {
     const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose a folder', properties: ['openDirectory', 'createDirectory'] });
     return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
   });
+  ipcMain.handle('vvl:open-folder', async (event, folder) => {
+    // Only an existing folder, given by its full path (a results folder).
+    if (!fromApp(event) || typeof folder !== 'string' || !path.isAbsolute(folder)) return false;
+    try {
+      if (!fs.statSync(folder).isDirectory()) return false;
+    } catch (_) {
+      return false;
+    }
+    return (await shell.openPath(folder)) === '';
+  });
   ipcMain.handle('vvl:update-state', (event) => (fromApp(event) ? updater.getState() : null));
   ipcMain.handle('vvl:update-install', async (event, options) => {
     if (!fromApp(event) || !updater.isReady() || quitState !== 'running') return false;

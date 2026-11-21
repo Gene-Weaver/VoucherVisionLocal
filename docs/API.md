@@ -1170,3 +1170,55 @@ download, or returns the job already running. 409 `CONFLICT` when installed.
 
 `vvl detector [--download] [--format coreml_fp32|onnx]` shows the same state from
 the command line and can download the files in the foreground.
+
+## 16. Saved results
+
+Every run can be saved to disk. The desktop app does this for every press of Run.
+
+**The folder.** `output_dir` in the settings (section on `/v1/settings`; an absolute
+path, `null` = the default `<VVL_HOME>/runs`).
+
+- `GET /v1/output` → `{dir, default_dir, is_default, exists, synced_folder, subfolders, stamp_format}`.
+
+**One folder per run.**
+
+- `POST /v1/output/batches` with `{"name": "<folder name or null>", "append": false}` → 201
+  `{id, path, folder, name, append, existed, saved, xlsx, errors}`.
+  - `append: false` (default): a new folder, `YYYYMMDD-HH-MM-SS`, or
+    `<name>_YYYYMMDD-HH-MM-SS` with a name. It never reuses an existing folder (a second
+    run in the same second gets `-2`).
+  - `append: true`: exactly `<name>` (required). It is created if missing; files with
+    the same name are replaced, and the spreadsheet keeps the rows already saved there.
+  - Names may not contain `< > : " / \ | ? *`, start with a dot, end with a dot or
+    space, be a Windows reserved name, or exceed 100 characters: 400 `INVALID_INPUT`.
+  - A folder that cannot be created or written: 400 `OUTPUT_DIR_UNAVAILABLE`.
+- Send the `id` as `output_batch` with `/process`, `/process-url` and
+  `/v1/process/finish`. Without it nothing is saved. An unknown id: 404
+  `OUTPUT_BATCH_NOT_FOUND`, before anything runs.
+- `POST /v1/output/batches/<id>/finish` → the same object, after the spreadsheet is
+  written a last time. `saved` counts the files per subfolder (`xlsx` counts rows);
+  `errors` lists files that could not be saved. Saving never fails a request.
+
+**What a run's folder holds** (file names follow the image's name; a second image with
+the same name in one run gets `_2`):
+
+| Subfolder | File | Content |
+|---|---|---|
+| `json/` | `<image>.json` | the full result, exactly as the API returned it |
+| `xlsx/` | `results.xlsx` | one row per parsed record |
+| `label_collage/` | `<image>.jpg` | the label collage sent to OCR (`collage_info.base64image_text_collage`) |
+| `input_image/` | `<image>.<ext>` | the image that was processed |
+| `ocr_txt/` | `<image>.txt` | the result's `ocr` text |
+
+In a two-pass batch the images are saved in the OCR pass and the rest in the parsing pass.
+
+**The spreadsheet** follows VoucherVisionGO's `save_results_to_xlsx`: a sheet named
+`results`, `filename` (no extension) first, then the record's fields in the order they
+first appear, every cell stored as text so Excel converts nothing. Each cell passes
+VoucherVisionGO's write-time guards (`vvl/vendor_vv/OCR_sanitize.py`): lists and objects
+are flattened, XML-illegal characters and line breaks removed, a leading `=`, `+` or `@`
+is neutralized with `'`, and text is cut at Excel's 32,767 character limit. OCR-only and
+notebook runs have no record and add no row. If `results.xlsx` cannot be replaced (open
+in Excel on Windows), the records are written to `results_<timestamp>.xlsx` and reported
+in `errors`. No CSV is written: VoucherVisionGO marks its CSV export "use at your own
+risk" because Excel converts its cells.

@@ -271,8 +271,13 @@ class VoucherVisionProcessor:
                               llm_thinking_level=DEFAULT_THINKING_LEVEL,
                               elevation_enabled=True,
                               stage=None,
-                              stage_token=None):
+                              stage_token=None,
+                              output=None):
         """Process one image. Returns (result_dict, status_code).
+
+        `output` (a vvl.outputs.OutputBatch) saves the input image, the label
+        collage, the result JSON, the OCR text and the spreadsheet row into that
+        run's results folder. A failure to save never fails the request.
 
         `stage` splits the work for two-pass batches (see vvl/stages.py):
         "ocr" stops after OCR, saves the result and returns a `stage_token`;
@@ -288,6 +293,7 @@ class VoucherVisionProcessor:
                 ocr_only = True
 
             resumed = None
+            output_stem = None
             if stage == "parse":
                 if parse_engine is None or prompt_path is None:
                     return _error_payload("INVALID_INPUT", "No parsing model or prompt was selected."), 400
@@ -302,6 +308,7 @@ class VoucherVisionProcessor:
                 collage_json_data = resumed["collage_info"]
                 text_collage_flag = resumed["text_collage_flag"]
                 engines_used = [types.SimpleNamespace(notice=resumed.get("ocr_notice")), parse_engine]
+                output_stem = resumed.get("output_stem")
 
             if resumed is None:
                 if not file.filename:
@@ -322,6 +329,9 @@ class VoucherVisionProcessor:
                 safe_name = secure_filename(file.filename) or "upload"
                 original_temp_path = os.path.join(temp_dir, f"original_{safe_name}")
                 file.save(original_temp_path)
+                if output is not None:
+                    output_stem = output.reserve(file.filename)
+                    output.save_input(output_stem, original_temp_path, file.filename)
 
                 with open(original_temp_path, "rb") as f_orig:
                     base64image_input_resized = base64.b64encode(f_orig.read()).decode("utf-8")
@@ -338,8 +348,11 @@ class VoucherVisionProcessor:
                     raise RuntimeError("CollageEngine failed to produce an image.")
 
                 collage_temp_path = os.path.join(temp_dir, f"collage_{safe_name}")
+                collage_bytes = base64.b64decode(collage_json_data["base64image_text_collage"])
                 with open(collage_temp_path, "wb") as f:
-                    f.write(base64.b64decode(collage_json_data["base64image_text_collage"]))
+                    f.write(collage_bytes)
+                if output is not None:
+                    output.save_collage(output_stem, collage_bytes)
 
                 engines_used = list(ocr_engines) + ([parse_engine] if (parse_engine and not ocr_only) else [])
                 text_collage_flag = "True" if collage_ran else "False"
@@ -360,6 +373,7 @@ class VoucherVisionProcessor:
                         "filename": original_filename, "url_source": url_source, "ocr_info": ocr_info, "ocr": ocr,
                         "collage_info": collage_json_data, "text_collage_flag": text_collage_flag,
                         "ocr_notice": combine_notices(ocr_engines),
+                        "output_stem": output_stem,
                     })
                     return OrderedDict([
                         ("staged", True),
@@ -495,6 +509,8 @@ class VoucherVisionProcessor:
             results["engine_notice"] = combine_notices(engines_used)
             if resumed is not None:
                 stages.discard(stage_token)
+            if output is not None:
+                output.save_result(output_stem or output.reserve(original_filename), results)
             logger.info("Processing completed successfully")
             return results, 200
 

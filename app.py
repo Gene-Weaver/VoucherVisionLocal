@@ -28,7 +28,7 @@ from flask import Blueprint, Flask, current_app, g, jsonify, make_response, requ
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 import vvl
-from vvl import paths, prompts, security, settings
+from vvl import outputs, paths, prompts, security, settings
 from vvl.api import register_blueprints
 from vvl.engines import (
     ALLOWED_THINKING_LEVELS,
@@ -179,7 +179,18 @@ def _prepare(params):
         llm_thinking_level=llm_thinking_level,
         elevation_enabled=bool(current["enrichment"]["elevation"]),
         stage=_stage(params.get("stage")),
+        output=_output_batch(params.get("output_batch")),
     )
+
+
+def _output_batch(batch_id):
+    """The results folder named by `output_batch` (POST /v1/output/batches), or None: nothing is saved."""
+    if batch_id in (None, ""):
+        return None
+    try:
+        return current_app.extensions["vvl"]["outputs"].get(batch_id)
+    except outputs.OutputError as exc:
+        raise ApiError(exc.code, str(exc), status=exc.status) from None
 
 
 def _stage(value):
@@ -194,6 +205,7 @@ def _stage(value):
 def _params_from_form(form):
     return {
         "stage": form.get("stage") or None,
+        "output_batch": form.get("output_batch") or None,
         "engines": _model_list(form.getlist("engines")) if "engines" in form else None,
         "prompt": form.get("prompt") or None,
         "ocr_only": _as_bool(form.get("ocr_only"), False),
@@ -210,6 +222,7 @@ def _params_from_form(form):
 def _params_from_json(data):
     return {
         "stage": data.get("stage") or None,
+        "output_batch": data.get("output_batch") or None,
         "engines": _model_list(data.get("engines")),
         "prompt": data.get("prompt") or None,
         "ocr_only": _as_bool(data.get("ocr_only"), False),
@@ -522,6 +535,8 @@ def create_app(*, token: str | None = None, config: dict | None = None) -> Flask
     flask_app.extensions["vvl"] = {
         "processor": processor,
         "provider_state": ProviderState(),
+        # The results folders of this run of the app (vvl/outputs.py).
+        "outputs": outputs.OutputStore(),
         # Phase 2: jobs, local model store, engine installer and supervisor.
         "runtime": runtime_obj,
     }
