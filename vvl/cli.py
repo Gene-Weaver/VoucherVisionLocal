@@ -64,11 +64,36 @@ def _cmd_detector(args) -> int:
             return 1
         state = store.state()
     print(f"State: {state['state']}")
+    if state["format"] == "onnx":
+        from vvl import detector_gpu
+
+        gpu_store = detector_gpu.GpuRuntimeStore(JobManager())
+        gpu = gpu_store.state()
+        if gpu["state"] in ("not_needed", "disabled"):
+            print(f"GPU: not used. {gpu['message']}")
+        else:
+            print(f"GPU: {gpu['device']['name']}, onnxruntime-gpu {gpu['onnxruntime_gpu']} (CUDA {gpu['cuda']}), "
+                  f"{gpu['size_bytes'] / 1e9:.1f} GB: {gpu['state']}")
+            if gpu["state"] != "installed" and args.download:
+                job = gpu_store.install()
+                while job.active:
+                    d = job.to_dict()
+                    done, total = d.get("bytes_done") or 0, d.get("bytes_total") or 0
+                    print(f"\r  GPU runtime {d['state']}: {done / 1e6:.0f} / {total / 1e6:.0f} MB", end="", flush=True)
+                    time.sleep(0.5)
+                print()
+                if job.state != "done":
+                    print(f"GPU runtime download failed: {job.error} (the CPU is used)")
     if state["state"] != "installed":
         return 0 if not args.download else 1
     t0 = time.perf_counter()
     detector = label_detector.load_detector(fmt=state["format"])
     print(f"Loads: {detector.label} ({time.perf_counter() - t0:.1f} s)")
+    if getattr(detector, "gpu_error", None):
+        print(f"The GPU failed, so the CPU is used: {detector.gpu_error}")
+    close = getattr(detector.backend, "close", None)
+    if close:
+        close()
     return 0
 
 
@@ -90,8 +115,8 @@ def main(argv=None) -> int:
     p_system.add_argument("--refresh", action="store_true", help="Re-probe instead of using the cache.")
     p_system.set_defaults(func=_cmd_system)
 
-    p_det = sub.add_parser("detector", help="Show (or --download) the TextCollage label detector.")
-    p_det.add_argument("--download", action="store_true", help="Download and verify it if it is missing.")
+    p_det = sub.add_parser("detector", help="Show (or --download) the TextCollage label detector and its GPU runtime.")
+    p_det.add_argument("--download", action="store_true", help="Download and verify what is missing (with a usable NVIDIA GPU, also its runtime).")
     p_det.add_argument("--format", choices=["coreml_fp32", "onnx"], default=None,
                        help="Override the format (default: coreml_fp32 on macOS, onnx elsewhere).")
     p_det.set_defaults(func=_cmd_detector)

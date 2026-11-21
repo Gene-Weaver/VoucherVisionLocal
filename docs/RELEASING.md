@@ -49,6 +49,12 @@ The pinned pieces move only with a release:
 - The TextCollage label detector: `vvl/registry/archival_detector.lock.yaml`
   (Hugging Face revision + sha256 of every file). Downloaded at first start into
   `<data>/detector/`; a new revision downloads once after the update.
+- The label detector's NVIDIA runtime (Linux x86_64, Windows x64):
+  `vvl/registry/detector_gpu.lock.yaml`, generated from the `detector-gpu` group in
+  `uv.lock` by `uv run python tools/lock_detector_gpu.py` (a test fails when the two
+  disagree). onnxruntime-gpu stays on 1.26.x, the last CUDA 12 build, until the
+  oldest supported NVIDIA driver is 580 or newer. Downloaded when a usable NVIDIA GPU
+  is found into `<data>/runtime/detector-gpu/`.
 - Electron, electron-builder, electron-updater: exact versions in `desktop/package.json`.
 
 ## Releasing (on the Mac)

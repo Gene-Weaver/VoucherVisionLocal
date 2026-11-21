@@ -512,7 +512,13 @@ def create_app(*, token: str | None = None, config: dict | None = None) -> Flask
     # VVL_DETECTOR_FACTORY (tests): () -> detector, instead of the downloaded label detector.
     processor = VoucherVisionProcessor(detector_factory=flask_app.config.get("VVL_DETECTOR_FACTORY"))
     runtime_obj = Runtime(flask_app.config)
-    runtime_obj.detector.on_installed = processor.reset_collage
+    def _detector_installed():
+        processor.reset_collage()
+        runtime_obj.detector_gpu.maybe_auto_install()
+
+    runtime_obj.detector.on_installed = _detector_installed
+    # The GPU runtime is ready: load the detector again, now on the GPU.
+    runtime_obj.detector_gpu.on_installed = processor.reset_collage
     flask_app.extensions["vvl"] = {
         "processor": processor,
         "provider_state": ProviderState(),

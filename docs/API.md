@@ -570,7 +570,7 @@ any job is active.
  "started_at": "…", "finished_at": null}
 ```
 
-- `kind`: `model_download | engine_install | detector_download` (section 15).
+- `kind`: `model_download | engine_install | detector_download | detector_gpu_download` (section 15).
 - `state`: `queued | running | verifying | done | error | canceled`.
 - `files[].state`: `pending | running | verifying | done | skipped | error`
   (`skipped` = already present and verified).
@@ -1119,6 +1119,23 @@ pinned in `vvl/registry/archival_detector.lock.yaml` and not bundled:
   `verified.json` records them. After the job, the processor loads the detector.
 - Format: `coreml_fp32` on macOS (Core ML, Apple GPU, 223 MB), `onnx` elsewhere
   (onnxruntime, CPU, 224 MB). `VVL_DETECTOR_FORMAT` overrides it.
+- NVIDIA GPU (Linux x86_64 and Windows x64): when the system report shows a usable
+  NVIDIA GPU, `vvl serve` downloads the detector's GPU runtime after the detector
+  (job kind `detector_gpu_download`, label "GPU runtime"): onnxruntime-gpu 1.26.0
+  (CUDA 12) and the NVIDIA wheels it loads (cuBLAS, cuDNN 9, ...), 2.0 GB on Linux
+  and 1.9 GB on Windows, 3.1 GB installed. They are pinned in
+  `vvl/registry/detector_gpu.lock.yaml` (generated from `uv.lock` by
+  `tools/lock_detector_gpu.py`), checked by sha256 and installed with uv into
+  `<VVL_HOME>/runtime/detector-gpu/`, never into the app's environment (the app's
+  onnxruntime and onnxruntime-gpu are the same Python package). The `onnx` model then
+  runs in a worker process (`textcollage/cuda_worker.py`) on the GPU with the most
+  free memory: about 0.06 s per sheet instead of 0.4 s, the same boxes as the CPU
+  (within 0.2 px), about 1.9 GB of GPU memory. The switch happens without a restart.
+  Usable means: NVIDIA driver 525.60.13 or newer (Windows 527.41), compute
+  capability 6.0 or newer, and on Linux glibc 2.27 or newer. Only the driver comes
+  from the system. When the GPU fails (at start or mid-batch), the detector goes
+  back to the CPU and says why in `gpu_error`. `VVL_DETECTOR_GPU=0` turns the GPU
+  runtime off.
 - Until it is installed (or when it fails to load), `/process` uses the whole
   image: `success.text_collage` is `"False"` and `position_original` is `{}`.
   No request fails because of the detector.
@@ -1130,14 +1147,26 @@ pinned in `vvl/registry/archival_detector.lock.yaml` and not bundled:
  "repo": "phyloforfun/lm3_archival_detector__yolo26x_det_1280", "revision": "cf178fe…",
  "size_bytes": 222904317, "path": "…/detector/lm3_archival_detector__yolo26x_det_1280@cf178fe1d447",
  "job": null, "error": null,
- "loaded": true, "loaded_runtime": "Core ML, Apple GPU", "load_error": null}
+ "loaded": true, "loaded_runtime": "Core ML, Apple GPU", "gpu_error": null, "load_error": null,
+ "gpu": {"state": "not_needed", "reason": "not_supported", "message": "There is no NVIDIA runtime …", …}}
 ```
 
 - `state`: `not_installed | downloading | installed | error` (`error` = the last
   download failed; `error` is its `{code, message}`).
+- `loaded_runtime`: what the loaded detector runs on, e.g. `"ONNX Runtime, CPU"` or
+  `"ONNX Runtime, NVIDIA GeForce RTX 4060 Laptop GPU"`. `gpu_error`: why the GPU is
+  not used although its runtime is installed (else null).
+- `gpu`: the NVIDIA runtime. `state`: `not_needed | disabled | not_installed |
+  downloading | installed | error`. `not_needed` carries `reason` (`not_supported`,
+  `no_nvidia_gpu`, `driver_too_old`, `gpu_too_old`, `glibc_too_old`) and `message`.
+  Otherwise also `device` (`{index, name, vram_free_bytes, vram_total_bytes}`, the
+  nvidia-smi index), `size_bytes`, `onnxruntime_gpu`, `cuda`, `path`, `job`, `error`.
 
 `POST /v1/detector/install` → 202 `{"job": Job}`: starts (or retries) the
 download, or returns the job already running. 409 `CONFLICT` when installed.
+
+`POST /v1/detector/gpu/install` → 202 `{"job": Job}`: the same for the GPU runtime.
+409 `CONFLICT` when it is installed, or when `gpu.state` is `not_needed` or `disabled`.
 
 `vvl detector [--download] [--format coreml_fp32|onnx]` shows the same state from
 the command line and can download the files in the foreground.

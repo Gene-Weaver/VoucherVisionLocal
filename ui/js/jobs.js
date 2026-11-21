@@ -30,7 +30,7 @@ export function getJob(id) {
     return id ? jobs.find((j) => j.id === id) || null : null;
 }
 
-/** The running job of one kind ('model_download' | 'engine_install' | 'detector_download'), else a queued one, else null. */
+/** The running job of one kind ('model_download' | 'engine_install' | 'detector_download' | 'detector_gpu_download'), else a queued one, else null. */
 export function activeJob(kind) {
     const mine = jobs.filter((j) => j.kind === kind && isActive(j));
     return mine.find((j) => j.state !== 'queued') || mine[0] || null;
@@ -172,7 +172,7 @@ export function mountIndicator(host) {
         el('span', { class: 'spinner spinner-small', 'aria-hidden': 'true' }), text);
     let current = null;
     button.addEventListener('click', () => {
-        if (current) gotoTab({ engine_install: 'engine', detector_download: 'setup' }[current.kind] || 'models');
+        if (current) gotoTab({ engine_install: 'engine', detector_download: 'setup', detector_gpu_download: 'setup' }[current.kind] || 'models');
     });
     replace(host, button);
     const render = () => {
@@ -182,12 +182,15 @@ export function mountIndicator(host) {
         if (!current) return;
         const install = current.kind === 'engine_install';
         const detector = current.kind === 'detector_download';
+        const gpu = current.kind === 'detector_gpu_download';
         // Short enough for the narrow header (190 px); the tooltip says the rest.
-        const what = install ? 'Engine install' : (detector ? 'Label detector' : (current.label || 'Downloading'));
+        const what = install ? 'Engine install' : (detector ? 'Label detector' : (gpu ? 'GPU runtime' : (current.label || 'Downloading')));
         const state = current.state === 'verifying' ? 'verifying' : (current.state === 'queued' ? 'queued' : `${jobPercent(current)}%`);
         const waiting = active.filter((j) => j.kind === 'model_download' && j.state === 'queued' && j !== current).length;
         text.textContent = `${what} · ${state}${waiting ? ` · ${waiting} queued` : ''}`;
-        button.title = install ? 'Installing the engine. View on Engine tab' : (detector ? 'Downloading the label detector. View on Setup page' : 'View on Models tab');
+        button.title = install ? 'Installing the engine. View on Engine tab'
+            : (detector ? 'Downloading the label detector. View on Setup page'
+                : (gpu ? 'Downloading the NVIDIA GPU runtime for the label detector. View on Setup page' : 'View on Models tab'));
     };
     on('jobs-changed', render);
     render();

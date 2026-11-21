@@ -64,7 +64,10 @@ def _textcollage():
     processor = VoucherVisionProcessor()
     if processor.collage_engine is None:
         return "fail", f"The label detector could not be loaded: {processor.collage_status()['load_error']}"
-    return "ok", f"Label detector loads ({label_detector.RUNTIME_LABELS[fmt]})"
+    status = processor.collage_status()
+    if status.get("gpu_error"):
+        return "warn", f"Label detector loads ({status['loaded_runtime']}); the GPU failed: {status['gpu_error']}"
+    return "ok", f"Label detector loads ({status['loaded_runtime']})"
 
 
 def _formats():

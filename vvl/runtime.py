@@ -12,6 +12,8 @@ restart. Test and scratch runs can override, through app config:
     VVL_SYSTEM_REPORT       callable(refresh: bool) -> report dict
     VVL_PRIVATE_PATH        credentials file (for the Hugging Face token)
     VVL_DETECTOR_LOCK_PATH  archival_detector.lock.yaml
+    VVL_DETECTOR_GPU_LOCK_PATH  detector_gpu.lock.yaml
+    VVL_DETECTOR_GPU_BASE_URL   tests: serve the GPU runtime wheels from here
 """
 
 from __future__ import annotations
@@ -23,6 +25,8 @@ from typing import Callable
 
 from vvl import paths, settings
 from vvl.jobs import JobManager
+from vvl.detector_gpu import GpuRuntimeStore
+from vvl.detector_gpu import load_lock as load_detector_gpu_lock
 from vvl.label_detector import DetectorStore
 from vvl.label_detector import load_lock as load_detector_lock
 from vvl.llama.installer import EngineInstaller
@@ -67,6 +71,13 @@ class Runtime:
             self.jobs,
             lock=lambda: load_detector_lock(self.config.get("VVL_DETECTOR_LOCK_PATH")),
             hf_base_url=self.config.get("VVL_HF_BASE_URL"),
+        )
+        # Its NVIDIA runtime (onnxruntime-gpu + CUDA/cuDNN wheels), downloaded when a usable GPU is found.
+        self.detector_gpu = GpuRuntimeStore(
+            self.jobs,
+            lock=lambda: load_detector_gpu_lock(self.config.get("VVL_DETECTOR_GPU_LOCK_PATH")),
+            report=lambda: self.system_report(False),
+            base_url=self.config.get("VVL_DETECTOR_GPU_BASE_URL"),
         )
         from vvl.llama.pool import EnginePool
 

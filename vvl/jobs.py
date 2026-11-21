@@ -28,7 +28,7 @@ from typing import Callable
 
 logger = logging.getLogger(__name__)
 
-JOB_KINDS = ("model_download", "engine_install", "detector_download")
+JOB_KINDS = ("model_download", "engine_install", "detector_download", "detector_gpu_download")
 JOB_STATES = ("queued", "running", "verifying", "done", "error", "canceled")
 ACTIVE_STATES = ("queued", "running", "verifying")
 FILE_STATES = ("pending", "running", "verifying", "done", "skipped", "error")

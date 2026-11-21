@@ -175,9 +175,11 @@ class VoucherVisionProcessor:
     def collage_status(self):
         """What the Setup page and `vvl doctor` show about the loaded detector."""
         engine = self._collage_engine
+        detector = engine.detector if engine is not None else None
         return {
             "loaded": engine is not None,
-            "loaded_runtime": engine.detector.label if engine is not None else None,
+            "loaded_runtime": detector.label if detector is not None else None,
+            "gpu_error": getattr(detector, "gpu_error", None),
             "load_error": self._collage_error,
         }
 

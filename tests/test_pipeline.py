@@ -322,4 +322,5 @@ def test_detector_load_error_is_kept_until_reset(make_app):
     processor = make_app(VVL_DETECTOR_FACTORY=broken).extensions["vvl"]["processor"]
     assert processor.collage_engine is None and processor.collage_engine is None
     assert len(calls) == 1
-    assert processor.collage_status() == {"loaded": False, "loaded_runtime": None, "load_error": "RuntimeError: bad package"}
+    assert processor.collage_status() == {"loaded": False, "loaded_runtime": None, "gpu_error": None,
+                                          "load_error": "RuntimeError: bad package"}

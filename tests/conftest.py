@@ -35,6 +35,8 @@ def vvl_env(tmp_path, monkeypatch):
     monkeypatch.delenv("VVL_TOKEN", raising=False)
     monkeypatch.delenv("VVL_OWNER_PID", raising=False)
     monkeypatch.delenv("VVL_PACKAGED", raising=False)
+    # Never the real 2 GB GPU runtime download from a test (tests/test_detector_gpu.py turns it on).
+    monkeypatch.setenv("VVL_DETECTOR_GPU", "0")
     return {key: Path(value) for key, value in env.items()}
 
 

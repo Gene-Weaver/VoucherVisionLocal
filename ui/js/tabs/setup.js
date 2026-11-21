@@ -42,6 +42,7 @@ const STATUS_LABEL = { done: 'Done', todo: 'To do', working: 'Working', problem:
 const ENGINE_KIND = 'engine_install';
 const DOWNLOAD_KIND = 'model_download';
 const DETECTOR_KIND = 'detector_download';
+const GPU_KIND = 'detector_gpu_download';
 const LOW_DISK_BYTES = 20e9;
 
 /** How well local models will run, in plain words. {status, text} */
@@ -99,6 +100,7 @@ export async function mount(panel) {
         engineBusy: false, engineProblem: null,
         modelBusy: false, modelProblem: null,
         detectorBusy: false, detectorProblem: null,
+        gpuBusy: false, gpuProblem: null,
         folderOpen: false, choosing: null,
     };
     let update = { status: 'unavailable' };
@@ -160,6 +162,7 @@ export async function mount(panel) {
     const engineProgress = progressView('Engine install progress');
     const modelProgress = progressView('Model download progress');
     const detectorProgress = progressView('Label detector download progress');
+    const gpuProgress = progressView('GPU runtime download progress');
 
     // ------------------------------------------------------------ actions
     async function choose(usage) {
@@ -262,6 +265,22 @@ export async function mount(panel) {
         }
     }
 
+    async function installGpu() {
+        ui.gpuBusy = true;
+        ui.gpuProblem = null;
+        render();
+        try {
+            const res = await api.post('/v1/detector/gpu/install', {}, { timeoutMs: 60000 });
+            if (res && res.job) trackJob(res.job);
+        } catch (err) {
+            ui.gpuProblem = plainError(err);
+        } finally {
+            ui.gpuBusy = false;
+            await loaders.detector();
+            render();
+        }
+    }
+
     async function downloadModel(build) {
         ui.modelBusy = true;
         ui.modelProblem = null;
@@ -329,7 +348,7 @@ export async function mount(panel) {
             return { id: 'detector', status: 'problem', title, text: 'The label detector is downloaded but could not be loaded.', tip: d.load_error, required: true };
         }
         if (d.state === 'installed') {
-            return { id: 'detector', status: 'done', title, text: `Ready (${d.runtime}).`, tip };
+            return { id: 'detector', status: 'done', title, text: `Ready (${d.loaded_runtime || d.runtime}).`, tip };
         }
         if (d.state === 'error') {
             const e = jobError(d.job);
@@ -338,6 +357,46 @@ export async function mount(panel) {
         }
         return { id: 'detector', status: 'todo', title, text: `Download the label detector (${size}). Until then, whole images are used instead of label collages.`,
             tip, action: button('Download', installDetector), required: true };
+    }
+
+    /** The label detector on an NVIDIA GPU: only on computers with one (null elsewhere). */
+    function gpuItem() {
+        const d = data.detector;
+        const g = d && d.gpu;
+        if (!g || g.state === 'not_needed' || g.state === 'disabled') return null;
+        const title = 'NVIDIA GPU';
+        const device = (g.device && g.device.name) || 'the NVIDIA GPU';
+        const size = fmtBytes(g.size_bytes);
+        const tip = `Runs the label detector on ${device}, about 10x faster than on the CPU. `
+            + `Needs onnxruntime-gpu ${g.onnxruntime_gpu} with CUDA ${g.cuda} and cuDNN (${size}, downloaded once). `
+            + 'Until it is ready, the label detector runs on the CPU.';
+        const job = activeJob(GPU_KIND);
+        if (job || ui.gpuBusy || g.state === 'downloading') {
+            if (job) gpuProgress.update(job);
+            return { id: 'gpu', status: 'working', title, text: `Downloading the GPU runtime (${size})…`, tip,
+                extra: job ? gpuProgress.node : null, required: false };
+        }
+        if (ui.gpuProblem) {
+            return { id: 'gpu', status: 'problem', title, text: ui.gpuProblem, tip, action: button('Try again', installGpu), required: false };
+        }
+        if (g.state === 'error') {
+            const e = jobError(g.job);
+            return { id: 'gpu', status: 'problem', title, text: `The download stopped: ${e.message} The CPU is used.`, tip: e.hint || tip,
+                action: button('Try again', installGpu), required: false };
+        }
+        if (g.state === 'installed' && d.gpu_error) {
+            return { id: 'gpu', status: 'problem', title, text: 'The GPU could not be used, so the label detector runs on the CPU.',
+                tip: d.gpu_error, required: false };
+        }
+        if (g.state === 'installed') {
+            return { id: 'gpu', status: 'done', title, text: `Label detector on ${device}`, tip, required: false };
+        }
+        if (d.state !== 'installed') {
+            // vvl serve starts it by itself once the label detector is downloaded.
+            return { id: 'gpu', status: 'todo', title, text: `Downloads after the label detector (${size}).`, tip, required: false };
+        }
+        return { id: 'gpu', status: 'todo', title, text: `Download the GPU runtime (${size}). Until then, the CPU is used.`, tip,
+            action: button('Download', installGpu), required: false };
     }
 
     function keyItem() {
@@ -539,7 +598,7 @@ export async function mount(panel) {
 
     function items() {
         // The app, Python and the label detector are needed whatever the choice, so they show before it.
-        const list = [appItem(), pythonItem(), detectorItem()];
+        const list = [appItem(), pythonItem(), detectorItem(), gpuItem()].filter(Boolean);
         if (wantsCloud()) list.push(keyItem(), pickItem());
         if (wantsLocal()) list.push(systemItem(), folderItem(), engineItem(), modelItem());
         return list;
@@ -644,7 +703,7 @@ export async function mount(panel) {
     // ------------------------------------------------------------ events
     let lastJobsKey = '';
     on('jobs-changed', (jobs) => {
-        const key = (jobs || []).filter((j) => [ENGINE_KIND, DOWNLOAD_KIND, DETECTOR_KIND].includes(j.kind)).map((j) => `${j.id}:${j.state}`).join('|');
+        const key = (jobs || []).filter((j) => [ENGINE_KIND, DOWNLOAD_KIND, DETECTOR_KIND, GPU_KIND].includes(j.kind)).map((j) => `${j.id}:${j.state}`).join('|');
         if (key !== lastJobsKey) {
             lastJobsKey = key;
             render();
@@ -653,14 +712,20 @@ export async function mount(panel) {
         const e = activeJob(ENGINE_KIND);
         const d = activeJob(DOWNLOAD_KIND);
         const det = activeJob(DETECTOR_KIND);
+        const gpu = activeJob(GPU_KIND);
         if (e) engineProgress.update(e);
         if (d) modelProgress.update(d);
         if (det) detectorProgress.update(det);
+        if (gpu) gpuProgress.update(gpu);
     });
     on('job-finished', async (job) => {
-        if (job && job.kind === DETECTOR_KIND) {
+        if (job && (job.kind === DETECTOR_KIND || job.kind === GPU_KIND)) {
             await loaders.detector();
             render();
+            if (job.kind === GPU_KIND) {
+                // The server reloads the detector on the GPU in the background (a few seconds).
+                setTimeout(async () => { await loaders.detector(); render(); }, 4000);
+            }
             return;
         }
         if (!wantsLocal()) return;

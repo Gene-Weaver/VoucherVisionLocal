@@ -13,7 +13,10 @@ NMS step. Two runtimes take the same input tensor and give the same rows
   input shape the letterbox below can make (long side 1280, short side a
   multiple of 32) and stops at the YOLO26 head's split; :func:`end2end_tail`
   runs the graph's top-k tail in numpy.
-* ``onnx`` (everywhere): onnxruntime on the CPU, the full end2end graph.
+* ``onnx`` (everywhere): onnxruntime on the CPU, the full end2end graph. With an
+  NVIDIA GPU and its runtime installed (vvl/detector_gpu.py), the same graph runs
+  on the GPU in a worker process (:class:`CudaWorkerBackend`, textcollage/cuda_worker.py);
+  if the GPU fails, the detector goes back to the CPU.
 
 Preprocessing and box scaling follow LeafMachine3 line for line (letterbox with
 ``INTER_LINEAR_EXACT``, gray 114 padding, BGR to RGB, the reciprocal-multiply
@@ -25,10 +28,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
 import shutil
+import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,6 +53,10 @@ COREML_UNITS = "CPU_AND_GPU"       # Core ML's CPU-only path crashes on multi-sh
 
 class DetectorError(RuntimeError):
     """The detector's files are missing, damaged, or cannot be loaded."""
+
+
+class GpuWorkerError(DetectorError):
+    """The GPU worker failed to start or to answer; the detector uses the CPU instead."""
 
 
 @dataclass(frozen=True)
@@ -172,6 +182,119 @@ class OnnxBackend:
         return np.asarray(self.session.run(None, {self.input_name: x})[0], np.float32)[0]
 
 
+class CudaWorkerBackend:
+    """onnxruntime-gpu (CUDA) with the full end2end graph, in a worker process.
+
+    ``gpu`` comes from vvl.detector_gpu.worker_config(): the runtime folder (onnxruntime-gpu
+    and the NVIDIA wheels), the device index and name, the Python and environment to use.
+    """
+
+    format = "onnx"
+    START_TIMEOUT = 180.0      # loading CUDA, cuDNN and the model, then one warm-up pass
+    RUN_TIMEOUT = 120.0
+
+    def __init__(self, model_dir: Path, gpu: dict):
+        from textcollage import cuda_worker as proto
+
+        self._proto = proto
+        path = Path(model_dir) / "onnx" / "model.onnx"
+        if not path.is_file():
+            raise DetectorError(f"{path} is missing")
+        self.device_name = gpu.get("device_name") or "NVIDIA GPU"
+        self.label = f"ONNX Runtime, {self.device_name}"
+        self._stderr_tail: deque[str] = deque(maxlen=40)
+        self._replies: queue.Queue = queue.Queue()
+        kwargs = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            self.proc = subprocess.Popen(
+                [gpu.get("python") or sys.executable, "-m", "textcollage.cuda_worker"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=gpu.get("env"), **kwargs)
+        except OSError as exc:
+            raise GpuWorkerError(f"could not start the GPU worker: {exc}") from exc
+        threading.Thread(target=self._read_replies, name="vvl-gpu-replies", daemon=True).start()
+        threading.Thread(target=self._read_stderr, name="vvl-gpu-stderr", daemon=True).start()
+        try:
+            proto.write_json(self.proc.stdin, {"model": str(path), "device_id": int(gpu.get("device_index") or 0),
+                                               "runtime_dir": gpu.get("runtime_dir")})
+            hello = self._reply(self.START_TIMEOUT)
+        except (OSError, GpuWorkerError) as exc:
+            self.close()
+            raise GpuWorkerError(f"the GPU worker did not start: {exc}") from exc
+        if not isinstance(hello, dict) or not hello.get("ok"):
+            self.close()
+            raise GpuWorkerError((hello or {}).get("error") or "the GPU worker did not start")
+        runtime_dir = gpu.get("runtime_dir")
+        loaded = hello.get("file") or ""
+        if runtime_dir and not os.path.abspath(loaded).startswith(os.path.abspath(runtime_dir)):
+            self.close()
+            raise GpuWorkerError(f"the GPU worker loaded the wrong onnxruntime ({loaded})")
+        self.onnxruntime_version = hello.get("onnxruntime")
+        logger.info("Label detector on the GPU: %s, onnxruntime %s", self.device_name, self.onnxruntime_version)
+
+    # -- worker I/O ------------------------------------------------------------
+
+    def _read_replies(self):
+        stream = self.proc.stdout
+        try:
+            while True:
+                kind, payload = self._proto.read_frame(stream)
+                if kind is None:
+                    break
+                self._replies.put((kind, payload))
+        except Exception:  # noqa: BLE001
+            pass
+        self._replies.put((None, None))
+
+    def _read_stderr(self):
+        for raw in self.proc.stderr:
+            line = raw.decode("utf-8", "replace").rstrip()
+            if line:
+                self._stderr_tail.append(line)
+                logger.debug("gpu worker: %s", line)
+
+    def _reply(self, timeout: float):
+        try:
+            kind, payload = self._replies.get(timeout=timeout)
+        except queue.Empty:
+            raise GpuWorkerError(f"no answer from the GPU worker in {timeout:.0f} s") from None
+        if kind is None:
+            code = self.proc.poll()
+            tail = "; ".join(list(self._stderr_tail)[-3:])
+            raise GpuWorkerError(f"the GPU worker stopped (exit {code}){': ' + tail if tail else ''}")
+        if kind == b"J":
+            return json.loads(payload)
+        return self._proto.bytes_array(payload)
+
+    def run(self, x: np.ndarray) -> np.ndarray:
+        try:
+            self._proto.write_frame(self.proc.stdin, b"A", self._proto.array_bytes(x))
+        except OSError as exc:
+            raise GpuWorkerError(f"the GPU worker is gone: {exc}") from exc
+        out = self._reply(self.RUN_TIMEOUT)
+        if isinstance(out, dict):
+            raise GpuWorkerError(out.get("error") or "the GPU worker failed")
+        return np.asarray(out, np.float32)[0]
+
+    def close(self):
+        proc = getattr(self, "proc", None)
+        if proc is None:
+            return
+        try:
+            proc.stdin.close()            # the worker exits when its stdin closes
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            proc.wait(timeout=5)
+        except Exception:  # noqa: BLE001
+            proc.kill()
+
+    def __del__(self):
+        self.close()
+
+
 def _compiled_coreml(pkg: Path, key: str, cache_dir: Path) -> Path:
     """The package compiled to ``.mlmodelc``: once per package, then reused from ``cache_dir``."""
     import coremltools as ct
@@ -242,18 +365,40 @@ class ArchivalDetector:
     """Image in, labels, barcodes, rulers (and the other archival classes) out."""
 
     def __init__(self, model_dir, fmt: str, *, classes, imgsz: int = 1280, conf: float = 0.25,
-                 max_det: int = 100, cache_dir=None):
+                 max_det: int = 100, cache_dir=None, gpu: dict | None = None):
         if fmt not in FORMATS:
             raise DetectorError(f"unknown detector format {fmt!r}")
         self.classes = list(classes)
         self.imgsz = int(imgsz)
         self.conf = float(conf)
         self.max_det = int(max_det)
+        self.model_dir = Path(model_dir)
+        self.gpu_error: str | None = None      # why the GPU is not used, when it was meant to be
         if fmt == "coreml_fp32":
-            self.backend = CoremlBackend(Path(model_dir), Path(cache_dir or Path(model_dir) / "compiled"))
+            self.backend = CoremlBackend(self.model_dir, Path(cache_dir or self.model_dir / "compiled"))
+        elif gpu:
+            try:
+                self.backend = CudaWorkerBackend(self.model_dir, gpu)
+            except GpuWorkerError as exc:
+                self._gpu_failed(exc)
+                self.backend = OnnxBackend(self.model_dir)
         else:
-            self.backend = OnnxBackend(Path(model_dir))
+            self.backend = OnnxBackend(self.model_dir)
         self._lock = threading.Lock()
+
+    def _gpu_failed(self, exc: Exception) -> None:
+        self.gpu_error = str(exc)
+        logger.warning("The label detector uses the CPU: the GPU failed (%s).", exc)
+
+    def _run(self, x: np.ndarray) -> np.ndarray:
+        try:
+            return self.backend.run(x)
+        except GpuWorkerError as exc:
+            # The GPU stopped working mid-run: go on with this and every later image on the CPU.
+            self._gpu_failed(exc)
+            self.backend.close()
+            self.backend = OnnxBackend(self.model_dir)
+            return self.backend.run(x)
 
     @property
     def format(self) -> str:
@@ -267,7 +412,7 @@ class ArchivalDetector:
         """(n, 6) rows in original-image pixels: x1, y1, x2, y2, score, class index."""
         x = preprocess(img_bgr, self.imgsz)
         with self._lock:
-            pred = self.backend.run(x)
+            pred = self._run(x)
         pred = end2end_filter(pred, self.conf, self.max_det).copy()
         scale_boxes(x.shape[2:], pred[:, :4], img_bgr.shape)
         return pred

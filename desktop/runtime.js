@@ -190,6 +190,8 @@ function backendCommand(resourcesPath, port, extraEnv) {
       PYTHONUNBUFFERED: '1',
       VVL_HOME: dataHome(),
       VVL_PACKAGED: '1',
+      // The backend installs the label detector's GPU runtime with this uv (vvl/detector_gpu.py).
+      VVL_UV: l.uv,
     }),
   };
 }

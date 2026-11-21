@@ -140,13 +140,15 @@ def _url_host(host: str) -> str:
 
 def _prepare_detector(runtime, processor) -> None:
     """Load the label detector, or start its download at first start
-    (VVL_DETECTOR_AUTO_DOWNLOAD=0 turns the download off)."""
+    (VVL_DETECTOR_AUTO_DOWNLOAD=0 turns the download off). With a usable NVIDIA
+    GPU, its runtime downloads after the detector (VVL_DETECTOR_GPU=0 turns it off)."""
     try:
         if runtime.detector.is_installed():
             processor.warm_up()
+            runtime.detector_gpu.maybe_auto_install()
         elif os.environ.get("VVL_DETECTOR_AUTO_DOWNLOAD", "1") != "0":
             logger.info("Downloading the label detector (first start).")
-            runtime.detector.install()
+            runtime.detector.install()      # its on_installed starts the GPU runtime when needed
     except Exception:  # noqa: BLE001
         logger.exception("Could not prepare the label detector.")
 

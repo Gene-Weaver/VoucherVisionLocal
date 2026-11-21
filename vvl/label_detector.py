@@ -8,7 +8,8 @@ Until the detector is installed, the pipeline sends the whole image instead of
 a label collage.
 
 Formats: `coreml_fp32` on macOS (Core ML on the Apple GPU), `onnx` elsewhere
-(onnxruntime on the CPU). `VVL_DETECTOR_FORMAT=onnx|coreml_fp32` overrides
+(onnxruntime on the CPU, or on an NVIDIA GPU once vvl/detector_gpu.py has
+installed its runtime). `VVL_DETECTOR_FORMAT=onnx|coreml_fp32` overrides
 the choice (testing).
 """
 
@@ -123,9 +124,14 @@ def load_detector(lock: dict | None = None, fmt: str | None = None):
         raise DetectorNotInstalled(f"the label detector ({fmt}) is not downloaded yet")
     from textcollage.detector import ArchivalDetector
 
+    gpu = None
+    if fmt == "onnx":
+        from vvl import detector_gpu
+
+        gpu = detector_gpu.worker_config()   # None: the CPU (no NVIDIA GPU, or its runtime not installed)
     return ArchivalDetector(install_dir(lock), fmt, classes=lock["classes"], imgsz=int(lock["imgsz"]),
                             conf=float(lock.get("conf", 0.25)), max_det=int(lock.get("max_det", 100)),
-                            cache_dir=paths.cache_dir() / "coreml")
+                            cache_dir=paths.cache_dir() / "coreml", gpu=gpu)
 
 
 class DetectorStore:

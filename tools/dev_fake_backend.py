@@ -375,6 +375,7 @@ def main() -> int:
     # them before anything from the backend is imported.
     os.environ.update({
         "VVL_HOME": str(root / "home"),
+        "VVL_DETECTOR_GPU": "0",          # never the real GPU runtime download from the fake backend
         "VVL_PRIVATE_PATH": str(private_path),
         "VVL_SETTINGS_PATH": str(settings_path),
         "VVL_PROMPTS_USER_DIR": str(root / "prompts_user"),
