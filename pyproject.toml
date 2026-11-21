@@ -47,6 +47,18 @@ vvl = "vvl.cli:main"
 dev = [
     "pytest>=8.3",
 ]
+# NEVER install this group into the environment (`uv sync --all-groups` would put
+# onnxruntime-gpu next to onnxruntime: both own the `onnxruntime` package). It is
+# here only so uv resolves and hash-pins the label detector's NVIDIA runtime:
+# tools/lock_detector_gpu.py copies these wheels into
+# vvl/registry/detector_gpu.lock.yaml, and the app downloads them into their own
+# folder (vvl/detector_gpu.py). 1.26.0 is the newest CUDA 12 build (1.27 and later
+# need CUDA 13 and an NVIDIA driver >= 580).
+detector-gpu = [
+    "onnxruntime-gpu[cuda,cudnn]==1.26.0; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
+    # cuDNN pulls in cuBLAS; 12.9.3.13 (the newest) has no Windows wheel.
+    "nvidia-cublas-cu12==12.9.2.10; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
+]
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,113 @@
+# The label detector's NVIDIA runtime: onnxruntime-gpu (CUDA 12, cuDNN 9) and the
+# NVIDIA library wheels it loads, per platform. GENERATED from uv.lock by
+# tools/lock_detector_gpu.py (the `detector-gpu` group in pyproject.toml); do not
+# edit by hand. Only wheels the app's own environment lacks are listed: the rest
+# (numpy, protobuf, ...) come from the environment. vvl/detector_gpu.py downloads
+# them, checks each sha256 and installs them into <VVL_HOME>/runtime/detector-gpu/.
+onnxruntime_gpu: 1.26.0
+cuda: '12'
+min_compute_capability: '6.0'
+platforms:
+  linux-x86_64:
+    min_driver: 525.60.13
+    min_glibc: '2.27'
+    wheels:
+    - name: nvidia-cublas-cu12
+      version: 12.9.2.10
+      filename: nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_x86_64.whl
+      url: https://files.pythonhosted.org/packages/cb/c0/0a517bfe63ccd3b92eb254d264e28fca3c7cab75d07daea315250fb1bf73/nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_x86_64.whl
+      sha256: e4f53a8ca8c5d6e8c492d0d0a3d565ecb59a751b19cfdaa4f6da0ab2104c1702
+      size_bytes: 581240110
+    - name: nvidia-cuda-nvrtc-cu12
+      version: 12.9.86
+      filename: nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl
+      url: https://files.pythonhosted.org/packages/b8/85/e4af82cc9202023862090bfca4ea827d533329e925c758f0cde964cb54b7/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl
+      sha256: 210cf05005a447e29214e9ce50851e83fc5f4358df8b453155d5e1918094dcb4
+      size_bytes: 89568129
+    - name: nvidia-cuda-runtime-cu12
+      version: 12.9.79
+      filename: nvidia_cuda_runtime_cu12-12.9.79-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      url: https://files.pythonhosted.org/packages/bc/46/a92db19b8309581092a3add7e6fceb4c301a3fd233969856a8cbf042cd3c/nvidia_cuda_runtime_cu12-12.9.79-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      sha256: 25bba2dfb01d48a9b59ca474a1ac43c6ebf7011f1b0b8cc44f54eb6ac48a96c3
+      size_bytes: 3493179
+    - name: nvidia-cudnn-cu12
+      version: 9.28.1.4
+      filename: nvidia_cudnn_cu12-9.28.1.4-py3-none-manylinux_2_27_x86_64.whl
+      url: https://files.pythonhosted.org/packages/2a/16/be895437624ae0400bda2b4bb69336cdb43346545e54edb15389d193a3b3/nvidia_cudnn_cu12-9.28.1.4-py3-none-manylinux_2_27_x86_64.whl
+      sha256: cbcf6f33c77fef3aa61d3fec36f2e89b07eb27d65b9f369c1adf3cfee08c2c21
+      size_bytes: 716579350
+    - name: nvidia-cufft-cu12
+      version: 11.4.1.4
+      filename: nvidia_cufft_cu12-11.4.1.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      url: https://files.pythonhosted.org/packages/95/f4/61e6996dd20481ee834f57a8e9dca28b1869366a135e0d42e2aa8493bdd4/nvidia_cufft_cu12-11.4.1.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      sha256: c67884f2a7d276b4b80eb56a79322a95df592ae5e765cf1243693365ccab4e28
+      size_bytes: 200877592
+    - name: nvidia-curand-cu12
+      version: 10.3.10.19
+      filename: nvidia_curand_cu12-10.3.10.19-py3-none-manylinux_2_27_x86_64.whl
+      url: https://files.pythonhosted.org/packages/31/44/193a0e171750ca9f8320626e8a1f2381e4077a65e69e2fb9708bd479e34a/nvidia_curand_cu12-10.3.10.19-py3-none-manylinux_2_27_x86_64.whl
+      sha256: 49b274db4780d421bd2ccd362e1415c13887c53c214f0d4b761752b8f9f6aa1e
+      size_bytes: 68295626
+    - name: nvidia-nvjitlink-cu12
+      version: 12.9.86
+      filename: nvidia_nvjitlink_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl
+      url: https://files.pythonhosted.org/packages/46/0c/c75bbfb967457a0b7670b8ad267bfc4fffdf341c074e0a80db06c24ccfd4/nvidia_nvjitlink_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl
+      sha256: e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9
+      size_bytes: 39748338
+    - name: onnxruntime-gpu
+      version: 1.26.0
+      filename: onnxruntime_gpu-1.26.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+      url: https://files.pythonhosted.org/packages/94/fd/59bee7cffaa435da44fefdeb63e29c61de4dbfa4b279852f59cd02c042ae/onnxruntime_gpu-1.26.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+      sha256: 3c01119ed4d9449d60367fa8ccffcd02bd3fe736754284e4b198d131f54edad6
+      size_bytes: 276971796
+  windows-x86_64:
+    min_driver: '527.41'
+    wheels:
+    - name: nvidia-cublas-cu12
+      version: 12.9.2.10
+      filename: nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/20/e2/fc9a0e985249d873150276d5afb02e39a66817fedbf1a385724393e505ed/nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl
+      sha256: 623f43027d40d44ceadf0043f002bd25cf353e8f13ce90b9a87057019f560661
+      size_bytes: 553162896
+    - name: nvidia-cuda-nvrtc-cu12
+      version: 12.9.86
+      filename: nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/52/de/823919be3b9d0ccbf1f784035423c5f18f4267fb0123558d58b813c6ec86/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-win_amd64.whl
+      sha256: 72972ebdcf504d69462d3bcd67e7b81edd25d0fb85a2c46d3ea3517666636349
+      size_bytes: 76408187
+    - name: nvidia-cuda-runtime-cu12
+      version: 12.9.79
+      filename: nvidia_cuda_runtime_cu12-12.9.79-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/59/df/e7c3a360be4f7b93cee39271b792669baeb3846c58a4df6dfcf187a7ffab/nvidia_cuda_runtime_cu12-12.9.79-py3-none-win_amd64.whl
+      sha256: 8e018af8fa02363876860388bd10ccb89eb9ab8fb0aa749aaf58430a9f7c4891
+      size_bytes: 3591604
+    - name: nvidia-cudnn-cu12
+      version: 9.28.1.4
+      filename: nvidia_cudnn_cu12-9.28.1.4-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/c7/bd/1d6709d2223e99f04079f16005f8ae6e11a14ee16b5eab6833686cf72fe1/nvidia_cudnn_cu12-9.28.1.4-py3-none-win_amd64.whl
+      sha256: 3467aafa9b260e6adf5fbbfc0e21d180133305b42032aa1160be2d3142bb8b09
+      size_bytes: 696300805
+    - name: nvidia-cufft-cu12
+      version: 11.4.1.4
+      filename: nvidia_cufft_cu12-11.4.1.4-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/20/ee/29955203338515b940bd4f60ffdbc073428f25ef9bfbce44c9a066aedc5c/nvidia_cufft_cu12-11.4.1.4-py3-none-win_amd64.whl
+      sha256: 8e5bfaac795e93f80611f807d42844e8e27e340e0cde270dcb6c65386d795b80
+      size_bytes: 200067309
+    - name: nvidia-curand-cu12
+      version: 10.3.10.19
+      filename: nvidia_curand_cu12-10.3.10.19-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/e5/98/1bd66fd09cbe1a5920cb36ba87029d511db7cca93979e635fd431ad3b6c0/nvidia_curand_cu12-10.3.10.19-py3-none-win_amd64.whl
+      sha256: e8129e6ac40dc123bd948e33d3e11b4aa617d87a583fa2f21b3210e90c743cde
+      size_bytes: 68774847
+    - name: nvidia-nvjitlink-cu12
+      version: 12.9.86
+      filename: nvidia_nvjitlink_cu12-12.9.86-py3-none-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/dd/7e/2eecb277d8a98184d881fb98a738363fd4f14577a4d2d7f8264266e82623/nvidia_nvjitlink_cu12-12.9.86-py3-none-win_amd64.whl
+      sha256: cc6fcec260ca843c10e34c936921a1c426b351753587fdd638e8cff7b16bb9db
+      size_bytes: 35584936
+    - name: onnxruntime-gpu
+      version: 1.26.0
+      filename: onnxruntime_gpu-1.26.0-cp312-cp312-win_amd64.whl
+      url: https://files.pythonhosted.org/packages/a4/e4/9b378a5466ea0bed65e5beb8e09254973c580a6522810a38afbcc45e5105/onnxruntime_gpu-1.26.0-cp312-cp312-win_amd64.whl
+      sha256: 5f49c44689894650990e4c8a857d2edafc276fbd79bba57ceb224bd18d25d491
+      size_bytes: 226548963
