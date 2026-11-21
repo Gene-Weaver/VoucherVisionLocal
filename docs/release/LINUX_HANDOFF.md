@@ -134,3 +134,47 @@ detector by itself in 14 s at first start and then built a real collage.
   `textcollage.detector.imread` reads non-ASCII paths there.
 - The VoucherVisionGO-Editor's releases list only the x64 zip in
   `latest-mac.yml` (reported to the owner; do not fix the Editor unless asked).
+
+## Done on Linux (2026-11-20)
+
+Checked on Ubuntu 22.04, x86_64 (Threadripper PRO 5975WX, libfuse2 installed).
+
+- **Detector.** `vvl detector --download` fetched and verified the onnx format in
+  4 s; `test_real_onnx_matches_the_mac_reference` passes, so Linux and the Mac give
+  the same detections. Time per sheet with onnxruntime: 0.35 s (all threads),
+  0.78 s (8 threads); in `docs/API.md`.
+- **OpenVINO, measured again.** On 21 test sheets of the archival dataset, OpenVINO
+  2026.4.1 running the same `model.onnx` gave identical detections (0 px, 0 score
+  difference) and was 18% faster with all threads (0.29 s vs 0.35 s) and 8% faster
+  with 8 threads (0.72 s vs 0.78 s). The OpenVINO IR in the Hugging Face repo is
+  fixed at 1280x1280, so it needs square padding: slower (0.39 s) and different
+  boxes on 19 of 21 sheets. onnxruntime stays installed anyway (`pymupdf` 2.1
+  needs it), so OpenVINO would be a second runtime and a 30-85 MB larger first
+  setup. Kept onnxruntime; the owner may decide otherwise.
+- **Tests.** 712 passed, 3 skipped. The two tests that failed on the Mac now use the
+  Linux workstation system report, so they pass on any host (checked with a fake
+  macOS report: both failed before, pass after).
+- **Released AppImage.** v0.1.0 from the release starts, runs the first-launch
+  Python setup, and a demo run returns a collage. It found v0.1.2 at launch
+  (differential download, 129 KB of 152 MB), showed "Update ready", and the click
+  replaced the file (sha512 equals the v0.1.2 feed) and restarted as v0.1.2. Closing
+  the window leaves no backend process.
+- **AppImage of current `main`.** First start with an empty data folder downloads
+  the detector by itself (about 3 s); `GET /v1/detector` is `installed`, the demo
+  run returns `text_collage: "True"` with barcode and label boxes in
+  `collage_info.position_original`. The window opens maximized (1850x1136 on an
+  1850x1173 work area).
+- **0.2.0 polish (done).** The Setup page lists the app, Python and the label
+  detector before the "How will you run models?" choice, followed by "Choose an
+  option above to see the rest of what is needed." The header pill now says
+  "Label detector · 40%" and "Engine install · 40%" (both fit the 190 px narrow
+  header; the tooltip has the long form).
+- **Dev tools.** `tools/dev_fake_backend.py` serves a fake 8 MB label detector and
+  uses the fixed-box stand-in, so `scenarios/setup-page.js` reaches the "ready"
+  banners again (it had 2 failures since 0.2.0); 48 screenshots, 0 problems.
+
+## Next on the Mac
+
+Bump `VERSION` to `0.2.0`, commit, push, `./deploy.sh`. Then on both machines:
+start 0.1.2, take the update, and check that the first start of 0.2.0 re-runs the
+Python setup (`uv.lock` changed) and then downloads the label detector.

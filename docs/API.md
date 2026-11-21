@@ -898,7 +898,9 @@ finished; an unknown, used, or expired token (3 days) is 404
 | 2 engines x 4 slots, one per card | not run | 9.8 |
 
 Label detection (section 15) takes about 0.3 s per image with Core ML on an M2 Pro and
-about 1.3 s with onnxruntime on its CPU; it is not a bottleneck next to OCR.
+about 1.3 s with onnxruntime on its CPU. On Linux with onnxruntime it takes about 0.35 s on
+a 32-core Threadripper PRO 5975WX and about 0.8 s when limited to 8 threads. It is not a
+bottleneck next to OCR.
 
 ## 12. Download queue and split model files
 
