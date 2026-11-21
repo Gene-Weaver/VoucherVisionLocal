@@ -454,6 +454,7 @@ function createWindow() {
     height: 860,
     minWidth: 1000,
     minHeight: 640,
+    show: false, // shown maximized below
     title: APP_NAME,
     backgroundColor: '#f8f9fa',
     webPreferences: {
@@ -496,6 +497,15 @@ function createWindow() {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
   });
+  // Open using the whole screen: maximized (macOS: zoomed to the area between the menu bar
+  // and the Dock), not full screen. Un-maximizing returns to 1280x860. Screenshot runs keep
+  // the fixed size so their images stay comparable.
+  if (screenshotDir) {
+    win.show();
+  } else {
+    win.maximize();
+    win.show();
+  }
   return win;
 }
 

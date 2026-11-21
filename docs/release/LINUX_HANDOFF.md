@@ -43,6 +43,7 @@ machines writing it at once can corrupt it.
 | TextCollage: LeafMachine3's archival detector | The 0.2.0 work, below. |
 | Setup page and job bar; docs | The detector download in the UI; `docs/API.md` section 15. |
 | Privacy fix | The Mac handoff says "the owner"; a vendored demo no longer has local paths. |
+| Main window opens maximized | `desktop/main.js`: maximized, not full screen (un-maximize gives 1280x860); screenshot runs keep 1280x860. Check it on Linux and Windows. |
 
 Published on GitHub: v0.1.0, v0.1.1, v0.1.2. Each has the Apple Silicon
 DMG and zip (signed, notarized), `VoucherVisionLocal-Setup-<v>-x64.exe`
