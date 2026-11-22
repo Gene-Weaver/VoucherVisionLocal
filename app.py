@@ -28,7 +28,7 @@ from flask import Blueprint, Flask, current_app, g, jsonify, make_response, requ
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 import vvl
-from vvl import outputs, paths, prompts, security, settings
+from vvl import outputs, paths, prompts, security, settings, viewer
 from vvl.api import register_blueprints
 from vvl.engines import (
     ALLOWED_THINKING_LEVELS,
@@ -537,6 +537,8 @@ def create_app(*, token: str | None = None, config: dict | None = None) -> Flask
         "provider_state": ProviderState(),
         # The results folders of this run of the app (vvl/outputs.py).
         "outputs": outputs.OutputStore(),
+        # JSON results viewer & independent-process image decoder (vvl/viewer.py).
+        "viewer": viewer.ViewerStore(),
         # Phase 2: jobs, local model store, engine installer and supervisor.
         "runtime": runtime_obj,
     }

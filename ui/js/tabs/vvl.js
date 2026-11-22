@@ -12,7 +12,9 @@ import { parseCsv, toCsv } from '../lib/csv.js';
 import { makeZip } from '../lib/zip.js';
 import { createMap } from '../lib/leaflet-map.js';
 import { mountGenSettings } from './gen_settings.js';
-import { folderPreview, loadOutput, openFolderButton } from '../output_folder.js';
+import {
+    OUTPUT_TYPES, canPickFolders, folderPreview, loadOutput, openFolderButton, pickFolder,
+} from '../output_folder.js';
 
 // A local model can take minutes (the first request also loads it), and a PDF
 // has many pages, so processing requests are never cut off by a timer here.
@@ -644,49 +646,182 @@ export async function mount(panel) {
     }
 
     // ------------------------------------------------------------ saved results
-    // Every press of Run saves into its own folder inside the results folder (Setup
-    // page): POST /v1/output/batches before the run, its id with every request, and
-    // .../finish after it. See vvl/outputs.py.
+    // Every press of Run saves into its own folder (or safely adds to an existing
+    // folder) inside the results folder. JSON is always saved; other outputs are optional.
+    let outputState = { dir: '', folders: [], output_types: { xlsx: true, label_collage: true, input_image: true, ocr_txt: true } };
+    let outputMode = prefs.get('outputAppend', false) ? 'existing' : 'new';
+
     const outputDir = el('code', { class: 'setup-path output-dir' }, '…');
+    const outputOpenHost = el('span', { class: 'output-open-host' });
+    const outputBrowseBtn = canPickFolders()
+        ? el('button', {
+            type: 'button', class: 'button-secondary button-small',
+            onclick: async () => {
+                try {
+                    const picked = await pickFolder();
+                    if (!picked) return;
+                    const saved = await api.put('/v1/settings', { output_dir: picked });
+                    const { warnings: _w, ...settings } = saved || {};
+                    updateCachedSettings(settings);
+                    emit('output-changed');
+                    toast('Results folder updated.', 'success');
+                } catch (err) {
+                    toastError(err, 'Could not change results folder');
+                }
+            },
+        }, icon('folder', { size: 13 }), 'Browse')
+        : null;
+
+    const modeNewBtn = el('button', {
+        type: 'button', 'aria-pressed': String(outputMode === 'new'),
+        onclick: () => setOutputMode('new'),
+    }, 'New folder');
+    const modeExistingBtn = el('button', {
+        type: 'button', 'aria-pressed': String(outputMode === 'existing'),
+        onclick: () => setOutputMode('existing'),
+    }, 'Add to existing');
+
     const outputName = el('input', {
         type: 'text', id: 'outputFolderName', class: 'output-name', maxlength: '100', spellcheck: 'false', autocomplete: 'off',
-        placeholder: 'optional', value: String(prefs.get('outputName', '') || ''),
+        placeholder: 'optional name', value: String(prefs.get('outputName', '') || ''),
     });
-    const outputAppend = el('input', { type: 'checkbox', id: 'outputAppend', checked: Boolean(prefs.get('outputAppend', false)) });
+    const existingSelect = el('select', {
+        id: 'outputExistingSelect', class: 'output-existing-select', 'aria-label': 'Existing folder',
+        onchange: () => {
+            if (existingSelect.value) {
+                outputName.value = existingSelect.value;
+                prefs.set('outputName', outputName.value.trim());
+                showOutputChoice();
+            }
+        },
+    });
+    const outputReplace = el('input', { type: 'checkbox', id: 'outputReplace', checked: Boolean(prefs.get('outputReplace', false)) });
+    const outputReplaceLabel = el('label', { class: 'check-row', for: outputReplace.id },
+        outputReplace, 'Replace same-named files',
+        infoTip('Off (safe): duplicates are numbered (_2, _3) so existing results are never overwritten. On: files with the same name are replaced.'));
+    const outputSafeHint = el('span', { class: 'help-text output-safe-hint' }, 'Existing files are kept; duplicates are numbered automatically.');
     const outputPreview = el('code', { class: 'output-preview' });
     const outputWarning = el('div', { class: 'notice notice-warn output-warning', role: 'alert', hidden: true }, icon('alert', { size: 18 }),
-        el('span', null, 'Files already in this folder are replaced by new files with the same name.'));
+        el('span', null, 'Same-named files in this folder will be replaced.'));
     const outputSaved = el('div', { class: 'output-saved', role: 'status', hidden: true });
-    function showOutputChoice() {
-        outputPreview.textContent = folderPreview(outputName.value, outputAppend.checked);
-        outputWarning.hidden = !outputAppend.checked;
+
+    const outputTypeBoxes = {};
+    const outputTypeRow = el('div', { class: 'output-types-row' }, OUTPUT_TYPES.map((item) => {
+        const id = `vvlOutput_${item.key}`;
+        const box = el('input', {
+            type: 'checkbox', id, checked: true, disabled: item.required,
+            onchange: () => saveOutputTypes(),
+        });
+        outputTypeBoxes[item.key] = box;
+        return el('label', { class: ['output-type-chip', item.required ? 'is-required' : ''], for: id, title: item.tip },
+            box,
+            el('span', null, item.label.replace(' (.xlsx)', '')),
+            item.required ? el('span', { class: 'output-req-tag' }, 'Required') : null);
+    }));
+
+    function currentOutputTypes() {
+        const out = {};
+        for (const item of OUTPUT_TYPES) {
+            if (!item.required) out[item.key] = Boolean(outputTypeBoxes[item.key].checked);
+        }
+        return out;
     }
+
+    async function saveOutputTypes() {
+        const output_types = currentOutputTypes();
+        outputState.output_types = output_types;
+        try {
+            const saved = await api.put('/v1/settings', { output_types });
+            const { warnings: _w, ...settings } = saved || {};
+            updateCachedSettings(settings);
+            emit('output-changed');
+        } catch (err) {
+            toastError(err, 'Could not save output options');
+        }
+    }
+
+    function setOutputMode(mode) {
+        outputMode = mode === 'existing' ? 'existing' : 'new';
+        prefs.set('outputAppend', outputMode === 'existing');
+        modeNewBtn.setAttribute('aria-pressed', String(outputMode === 'new'));
+        modeExistingBtn.setAttribute('aria-pressed', String(outputMode === 'existing'));
+        if (outputMode === 'existing' && !outputName.value.trim() && outputState.folders.length) {
+            outputName.value = outputState.folders[0].name;
+            prefs.set('outputName', outputName.value.trim());
+        }
+        showOutputChoice();
+    }
+
+    function renderExistingDropdown() {
+        const folders = outputState.folders || [];
+        const currentVal = outputName.value.trim();
+        replace(existingSelect,
+            el('option', { value: '' }, folders.length ? 'Pick existing folder…' : 'No existing folders yet'),
+            folders.map((f) => el('option', { value: f.name }, `${f.name}${f.json_count ? ` (${f.json_count})` : ''}`)));
+        existingSelect.value = folders.some((f) => f.name === currentVal) ? currentVal : '';
+    }
+
+    const existingPickerWrap = el('span', { class: 'output-existing-wrap' }, existingSelect);
+    const replaceWrap = el('div', { class: 'output-row output-replace-row' }, outputReplaceLabel, outputSafeHint);
+
+    function showOutputChoice() {
+        const isExisting = outputMode === 'existing';
+        existingPickerWrap.hidden = !isExisting;
+        replaceWrap.hidden = !isExisting;
+        outputName.placeholder = isExisting ? 'folder name' : 'optional name';
+        outputPreview.textContent = folderPreview(outputName.value, isExisting);
+        outputWarning.hidden = !(isExisting && outputReplace.checked);
+        outputSafeHint.hidden = !(isExisting && !outputReplace.checked);
+        renderExistingDropdown();
+    }
+
     outputName.addEventListener('input', () => {
         prefs.set('outputName', outputName.value.trim());
         showOutputChoice();
     });
-    outputAppend.addEventListener('change', () => {
-        prefs.set('outputAppend', outputAppend.checked);
+    outputReplace.addEventListener('change', () => {
+        prefs.set('outputReplace', outputReplace.checked);
         showOutputChoice();
     });
+
     async function loadOutputDir() {
         try {
-            outputDir.textContent = (await loadOutput()).dir;
+            const info = await loadOutput();
+            outputState = {
+                dir: info.dir || '',
+                folders: Array.isArray(info.folders) ? info.folders : [],
+                output_types: info.output_types || { xlsx: true, label_collage: true, input_image: true, ocr_txt: true },
+            };
+            outputDir.textContent = outputState.dir || 'unknown';
+            replace(outputOpenHost, openFolderButton(outputState.dir, 'Open'));
+            for (const item of OUTPUT_TYPES) {
+                if (!item.required && outputTypeBoxes[item.key]) {
+                    outputTypeBoxes[item.key].checked = outputState.output_types[item.key] !== false;
+                }
+            }
+            showOutputChoice();
         } catch (_) {
             outputDir.textContent = 'unknown';
         }
     }
     on('output-changed', loadOutputDir);
+
     const outputBar = el('div', { class: 'output-bar' },
         el('div', { class: 'output-row' },
-            el('span', { class: 'output-label' }, 'Save to', infoTip('Each run is saved in its own folder: json, xlsx, label_collage, input_image and ocr_txt.', 'start')),
+            el('span', { class: 'output-label' }, 'Save to', infoTip('Base folder where run folders are stored.', 'start')),
             outputDir,
-            el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('setup') }, 'Change')),
+            outputBrowseBtn,
+            outputOpenHost,
+            el('button', { type: 'button', class: 'link-button', onclick: () => gotoTab('setup') }, 'Setup')),
         el('div', { class: 'output-row' },
-            el('label', { class: 'output-label', for: outputName.id }, 'Folder name'),
-            outputName,
-            el('label', { class: 'check-row', for: outputAppend.id }, outputAppend, 'Add to this folder',
-                infoTip('Off: every run gets a new folder, named with the date and time. On: the run is added to the folder with exactly this name.'))),
+            el('span', { class: 'output-label' }, 'Folder'),
+            el('div', { class: 'org-seg', role: 'group', 'aria-label': 'Folder mode' }, modeNewBtn, modeExistingBtn),
+            existingPickerWrap,
+            outputName),
+        replaceWrap,
+        el('div', { class: 'output-row' },
+            el('span', { class: 'output-label' }, 'Outputs', infoTip('JSON is always saved. Other folders are optional.', 'start')),
+            outputTypeRow),
         el('div', { class: 'output-row output-row-preview' }, el('span', { class: 'output-label' }, 'This run'), outputPreview),
         outputWarning,
         outputSaved);
@@ -695,16 +830,22 @@ export async function mount(panel) {
 
     /** Start this run's results folder. Null (after telling the user) when it cannot be made. */
     async function startOutput() {
+        const isExisting = outputMode === 'existing';
         const name = outputName.value.trim();
-        if (outputAppend.checked && !name) {
-            toast('Name the folder to add to.', 'warning');
+        if (isExisting && !name) {
+            toast('Select or name a folder to add to.', 'warning');
             outputName.focus();
             return null;
         }
         try {
-            return await api.post('/v1/output/batches', { name: name || null, append: outputAppend.checked });
+            return await api.post('/v1/output/batches', {
+                name: name || null,
+                append: isExisting,
+                replace_existing: isExisting && outputReplace.checked,
+                save: currentOutputTypes(),
+            });
         } catch (err) {
-            toastError(err, 'The results folder could not be made');
+            toastError(err, 'Could not prepare results folder');
             return null;
         }
     }
@@ -716,7 +857,7 @@ export async function mount(panel) {
         try {
             summary = await api.post(`/v1/output/batches/${encodeURIComponent(batch.id)}/finish`, {});
         } catch (err) {
-            toastError(err, 'The results folder could not be finished');
+            toastError(err, 'Could not finish results folder');
         }
         const path = (summary && summary.path) || batch.path;
         const saved = (summary && summary.saved) || {};
@@ -724,11 +865,16 @@ export async function mount(panel) {
         const count = Number(saved.json) || 0;
         replace(outputSaved,
             icon(errors.length ? 'alert' : 'check', { size: 15 }),
-            el('span', null, count ? `Saved ${count} result${count === 1 ? '' : 's'} to ` : 'Nothing was saved in '),
+            el('span', null, count ? `Saved ${count} result${count === 1 ? '' : 's'} to ` : 'Nothing saved in '),
             el('code', { class: 'setup-path' }, path),
+            count ? el('button', {
+                type: 'button', class: 'button button-small',
+                onclick: () => gotoTab('viewer', path),
+            }, icon('eye', { size: 13 }), 'View results') : null,
             openFolderButton(path),
             errors.length ? el('span', { class: 'output-errors' }, `${errors.length} file${errors.length === 1 ? '' : 's'} could not be saved: ${errors[0]}`) : null);
         outputSaved.hidden = false;
+        emit('output-changed');
         if (errors.length) toast('Some result files could not be saved.', 'error');
     }
 

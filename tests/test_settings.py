@@ -14,7 +14,8 @@ pytestmark = pytest.mark.usefixtures("no_network")
 
 def test_defaults_without_file(client, auth, vvl_env):
     body = client.get("/v1/settings", headers=auth).get_json()
-    assert set(body) == {"models_dir", "output_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup"}
+    assert set(body) == {"models_dir", "output_dir", "output_types", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup"}
+    assert body["output_types"] == {"xlsx": True, "label_collage": True, "input_image": True, "ocr_txt": True}
     assert body["setup"] == {"usage": None}
     assert body["generation"] == {
         "ocr": {"reasoning": "off", "strength": "high", "output_length": "standard", "image_detail": "standard"},

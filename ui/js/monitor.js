@@ -7,7 +7,7 @@
 
 import { api } from './api.js';
 import { el, fmtMemory, replace } from './dom.js';
-import { on } from './state.js';
+import { emit, on } from './state.js';
 
 const POLL_MS = 2000;
 const BUSY_POLL_MS = 1000;      // while the engine is starting, loading or stopping
@@ -215,6 +215,7 @@ export function mountMonitor(host) {
             last = await api.get('/v1/metrics', { timeoutMs: REQUEST_TIMEOUT_MS, background: true });
             failures = 0;
             render();
+            if (last && last.engine) emit('engine-metrics', last.engine);
         } catch (err) {
             failures += 1;
             if (err && err.status === 401) stopped = true; // the page shows its own message for this

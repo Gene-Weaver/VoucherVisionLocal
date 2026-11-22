@@ -29,7 +29,7 @@ const TERM_GRACE_MS = 3000;
 // it gets longer than that to exit by itself before it is stopped by force.
 const SHUTDOWN_WAIT_MS = 25000;
 const OUTPUT_TAIL_LINES = 40;
-const TABS = ['vvl', 'models', 'keys', 'prompts', 'engine'];
+const TABS = ['vvl', 'models', 'keys', 'prompts', 'viewer', 'engine'];
 
 // ---------------------------------------------------------------- options
 const argv = process.argv.slice(1);

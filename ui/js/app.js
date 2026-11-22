@@ -1,8 +1,8 @@
 // App shell: session-token gate, the top tab bar, lazy tab loading, theme.
 
-import { api, ApiError, describeError, initToken, inflightCount, toast } from './api.js';
+import { api, ApiError, describeError, initToken, inflightCount, toast, toastError } from './api.js';
 import { clear, el, icon, replace, prefs, stateBox } from './dom.js';
-import { getAppInfo, loadSettings, on, setAppInfo } from './state.js';
+import { emit, getAppInfo, loadSettings, on, setAppInfo } from './state.js';
 import { allJobs, isActive, mountIndicator, refreshJobs } from './jobs.js';
 import { mountMonitor } from './monitor.js';
 import { installUpdate, onUpdate, startUpdates } from './updates.js';
@@ -12,7 +12,8 @@ const TABS = [
     { id: 'models', label: 'Models', title: 'Models', module: './tabs/models.js' },
     { id: 'keys', label: 'Keys', title: 'API keys', module: './tabs/keys.js' },
     { id: 'prompts', label: 'Prompts', title: 'Prompts', module: './tabs/prompts.js' },
-    { id: 'engine', label: 'Engine', title: 'System & engine', module: './tabs/engine.js' },
+    { id: 'viewer', label: 'Viewer', title: 'View JSON results', module: './tabs/viewer.js' },
+    { id: 'engine', label: 'Engine', title: 'System & engine', module: './tabs/engine.js', right: true },
     // No button in the tab bar: opened from the version number in the header, by #setup, and on first run.
     { id: 'setup', label: 'Setup', title: 'Setup', module: './tabs/setup.js', hidden: true },
 ];
@@ -109,12 +110,16 @@ function fatalBadToken() {
     ]);
 }
 
+const ENGINE_STOP_HINT = 'Stopping the Engine will free all resources and automatically restart on the next run.';
+
 // ---------------------------------------------------------------- tabs
 function buildTabBar() {
     const bar = document.getElementById('tabBar');
     const list = el('div', { class: 'nav-tabs', role: 'tablist', 'aria-label': 'VoucherVisionLocal sections' });
+
+    let engineControls = null;
     for (const t of TABS.filter((x) => !x.hidden)) {
-        list.appendChild(el('button', {
+        const btn = el('button', {
             type: 'button',
             role: 'tab',
             id: `tab-${t.id}`,
@@ -125,7 +130,59 @@ function buildTabBar() {
             title: t.title,
             dataset: { tab: t.id },
             onclick: () => activate(t.id, null, { focus: false, updateHash: true }),
-        }, t.label));
+        }, t.label);
+
+        if (t.right) {
+            btn.className = 'nav-tab nav-engine-tab';
+            const stopBtn = el('button', {
+                type: 'button',
+                id: 'navEngineStop',
+                class: 'nav-engine-stop',
+                disabled: true,
+                'aria-label': `Stop engine. ${ENGINE_STOP_HINT}`,
+            }, icon('stop', { size: 11 }), el('span', null, 'Stop'));
+            const stopWrap = el('span', {
+                class: 'nav-tip-wrap',
+                'data-tip': ENGINE_STOP_HINT,
+            }, stopBtn);
+
+            let stopping = false;
+            let lastState = 'stopped';
+
+            function applyEngineState(eng) {
+                const st = (eng && eng.state) || 'stopped';
+                lastState = st;
+                const active = st === 'ready' || st === 'starting' || st === 'loading_model';
+                const busyStop = stopping || st === 'stopping';
+                stopBtn.disabled = busyStop || !active;
+                stopBtn.classList.toggle('is-active', active && !busyStop);
+                const labelEl = stopBtn.querySelector('span');
+                if (labelEl) labelEl.textContent = busyStop ? 'Stopping…' : 'Stop';
+            }
+
+            stopBtn.addEventListener('click', async () => {
+                if (stopping) return;
+                stopping = true;
+                applyEngineState({ state: 'stopping' });
+                try {
+                    const res = await api.post('/v1/engine/stop', {}, { timeoutMs: 30000 });
+                    toast('Engine stopped.', 'success');
+                    emit('engine-changed');
+                    applyEngineState(res && res.managed ? res.managed : { state: 'stopped' });
+                } catch (err) {
+                    toastError(err, 'Could not stop engine');
+                    applyEngineState({ state: lastState });
+                } finally {
+                    stopping = false;
+                }
+            });
+
+            on('engine-metrics', applyEngineState);
+            engineControls = el('div', { id: 'navEngineGroup', class: 'nav-engine-group' }, btn, stopWrap);
+            list.appendChild(engineControls);
+        } else {
+            list.appendChild(btn);
+        }
     }
     list.addEventListener('keydown', (ev) => {
         const tabs = [...list.querySelectorAll('[role="tab"]')];
@@ -177,6 +234,10 @@ async function activate(id, target = null, { focus = false, updateHash = false }
             tabBtn.setAttribute('aria-selected', String(on));
             tabBtn.tabIndex = on ? 0 : -1;
             tabBtn.classList.toggle('active', on);
+        }
+        if (t.right) {
+            const grp = document.getElementById('navEngineGroup');
+            if (grp) grp.classList.toggle('active', on);
         }
         panel.hidden = !on;
     }

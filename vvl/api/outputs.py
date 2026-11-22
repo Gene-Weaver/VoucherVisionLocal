@@ -32,7 +32,8 @@ def _api_error(exc: outputs.OutputError) -> ApiError:
 
 @bp.get("/v1/output")
 def get_output():
-    current = settings.load(settings_file())["output_dir"]
+    loaded = settings.load(settings_file())
+    current = loaded["output_dir"]
     default = str(outputs.default_dir())
     return jsonify({
         "dir": current,
@@ -41,6 +42,9 @@ def get_output():
         "exists": os.path.isdir(current),
         "synced_folder": paths.synced_folder_hint(current),
         "subfolders": list(outputs.SUBDIRS),
+        "optional_subfolders": list(outputs.OPTIONAL_SUBDIRS),
+        "output_types": dict(loaded["output_types"]),
+        "folders": outputs.list_existing_folders(current),
         "stamp_format": "YYYYMMDD-HH-MM-SS",
     })
 
@@ -51,8 +55,19 @@ def create_batch():
     append = body.get("append", False)
     if not isinstance(append, bool):
         raise ApiError("INVALID_INPUT", "append must be true or false.", status=400)
+    replace_existing = body.get("replace_existing", False)
+    if not isinstance(replace_existing, bool):
+        raise ApiError("INVALID_INPUT", "replace_existing must be true or false.", status=400)
+    loaded = settings.load(settings_file())
+    include = body.get("save") if "save" in body else loaded["output_types"]
     try:
-        batch = _store().create(settings.load(settings_file())["output_dir"], name=body.get("name"), append=append)
+        batch = _store().create(
+            loaded["output_dir"],
+            name=body.get("name"),
+            append=append,
+            include=include,
+            replace_existing=replace_existing,
+        )
     except outputs.OutputError as exc:
         raise _api_error(exc) from None
     return jsonify(batch.summary()), 201

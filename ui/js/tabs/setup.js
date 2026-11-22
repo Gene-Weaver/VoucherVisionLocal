@@ -15,7 +15,7 @@ import { el, icon, replace, externalLink, fmtBytes, fmtMemory } from '../dom.js'
 import { emit, getAppInfo, gotoTab, loadSettings, on, updateCachedSettings } from '../state.js';
 import { activeJob, allJobs, isActive, jobError, progressView, refreshJobs, trackJob } from '../jobs.js';
 import { mountModelsFolder } from '../models_folder.js';
-import { mountOutputFolder, openFolderButton } from '../output_folder.js';
+import { formatOutputSummary, mountOutputFolder, openFolderButton } from '../output_folder.js';
 import { describeUpdate, installUpdate, onUpdate } from '../updates.js';
 
 const CHOICES = [
@@ -367,6 +367,7 @@ export async function mount(panel) {
     // own "runs" folder), so this step is done from the start; it is here to be changed.
     function outputItem() {
         const dir = (data.settings && data.settings.output_dir) || '';
+        const summary = formatOutputSummary(data.settings && data.settings.output_types);
         if (ui.outputOpen && !outputMounted) {
             outputMounted = true;
             mountOutputFolder(outputHost, {
@@ -378,10 +379,9 @@ export async function mount(panel) {
         }
         return {
             id: 'output', status: 'done', title: 'Results folder',
-            text: ui.outputOpen ? null : 'Each run is saved in its own dated folder here.',
+            text: ui.outputOpen ? null : `Saves: ${summary}`,
             path: ui.outputOpen ? null : dir,
-            tip: 'Each press of Run makes a folder named with the date and time (YYYYMMDD-HH-MM-SS), holding json, xlsx, '
-                + 'label_collage, input_image and ocr_txt. Name the folder, or add to an existing one, beside the Run button.',
+            tip: 'Choose where runs are saved and which optional folders to include. JSON is always saved.',
             action: el('span', { class: 'row' },
                 ui.outputOpen ? null : openFolderButton(dir, 'Open'),
                 button(ui.outputOpen ? 'Close' : 'Change', () => { ui.outputOpen = !ui.outputOpen; render(); }, { primary: false })),

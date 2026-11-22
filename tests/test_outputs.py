@@ -183,21 +183,58 @@ def test_two_pass_run_saves_images_in_the_first_pass_and_the_record_in_the_secon
     assert json.loads((folder / "json" / "MICH_16205594.json").read_text(encoding="utf-8")) == done.get_json()
 
 
-def test_adding_to_a_folder_replaces_same_names_and_keeps_the_other_rows(client, auth):
+def test_adding_to_a_folder_safely_preserves_existing_and_can_optionally_replace(client, auth):
     from pathlib import Path
     first = start(client, auth, name="set", append=True)
     assert post_image(client, auth, {"output_batch": first["id"]}, filename="a.jpg").status_code == 200
     assert post_image(client, auth, {"output_batch": first["id"]}, filename="b.jpg").status_code == 200
     finish(client, auth, first)
-    second = start(client, auth, name="set", append=True)
-    assert post_image(client, auth, {"output_batch": second["id"]}, filename="b.jpg").status_code == 200
-    assert post_image(client, auth, {"output_batch": second["id"]}, filename="c.jpg").status_code == 200
-    summary = finish(client, auth, second)
-    folder = Path(second["path"])
-    assert sorted(p.name for p in (folder / "json").iterdir()) == ["a.json", "b.json", "c.json"]
+
+    # Default append is safe: duplicate filenames are auto-numbered instead of overwritten.
+    safe_second = start(client, auth, name="set", append=True)
+    assert safe_second["replace_existing"] is False
+    assert post_image(client, auth, {"output_batch": safe_second["id"]}, filename="b.jpg").status_code == 200
+    assert post_image(client, auth, {"output_batch": safe_second["id"]}, filename="c.jpg").status_code == 200
+    safe_summary = finish(client, auth, safe_second)
+    folder = Path(safe_second["path"])
+    assert sorted(p.name for p in (folder / "json").iterdir()) == ["a.json", "b.json", "b_2.json", "c.json"]
     rows, _ = sheet_rows(folder / "xlsx" / "results.xlsx")
-    assert [r[0] for r in rows] == ["filename", "a", "b", "c"]          # earlier rows are still there
-    assert summary["saved"]["xlsx"] == 3
+    assert [r[0] for r in rows] == ["filename", "a", "b", "b_2", "c"]
+    assert safe_summary["saved"]["xlsx"] == 4
+
+    # Explicit replace_existing=True overwrites same-named files while keeping other rows.
+    replace_third = start(client, auth, name="set", append=True, replace_existing=True)
+    assert post_image(client, auth, {"output_batch": replace_third["id"]}, filename="b.jpg").status_code == 200
+    replace_summary = finish(client, auth, replace_third)
+    assert sorted(p.name for p in (folder / "json").iterdir()) == ["a.json", "b.json", "b_2.json", "c.json"]
+    assert replace_summary["saved"]["xlsx"] == 4
+
+
+def test_optional_output_types_keep_json_required(client, auth):
+    from pathlib import Path
+
+    # Turn off all optional outputs: only json/ is created and written.
+    batch = start(client, auth, name="json_only", save={
+        "xlsx": False, "label_collage": False, "input_image": False, "ocr_txt": False,
+    })
+    assert batch["enabled"] == ["json"]
+    assert post_image(client, auth, {"output_batch": batch["id"]}).status_code == 200
+    summary = finish(client, auth, batch)
+    assert summary["saved"] == {"json": 1, "xlsx": 0, "label_collage": 0, "input_image": 0, "ocr_txt": 0}
+    folder = Path(batch["path"])
+    assert (folder / "json" / "MICH_16205594.json").is_file()
+    for skipped in ("xlsx", "label_collage", "input_image", "ocr_txt"):
+        assert not (folder / skipped).exists()
+
+    # Settings output_types apply as default when batch omits `save`.
+    upd = client.put("/v1/settings", headers=auth, json={"output_types": {"input_image": False, "ocr_txt": False}})
+    assert upd.status_code == 200
+    assert upd.get_json()["output_types"] == {"xlsx": True, "label_collage": True, "input_image": False, "ocr_txt": False}
+    b2 = start(client, auth, name="from_settings")
+    assert b2["enabled"] == ["json", "xlsx", "label_collage"]
+    assert post_image(client, auth, {"output_batch": b2["id"]}).status_code == 200
+    s2 = finish(client, auth, b2)
+    assert s2["saved"] == {"json": 1, "xlsx": 1, "label_collage": 1, "input_image": 0, "ocr_txt": 0}
 
 
 # ------------------------------------------------------- spreadsheet guards --

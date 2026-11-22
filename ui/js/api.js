@@ -142,13 +142,13 @@ async function parseError(response) {
  * `background` marks a request the page makes by itself over and over (the
  * resource monitor); it is left out of inflightCount().
  */
-export async function request(method, path, { json, form, query, timeoutMs = 60000, signal, background = false } = {}) {
+export async function request(method, path, { json, form, query, timeoutMs = 60000, signal, background = false, responseType = 'json' } = {}) {
     let url = path;
     if (query) {
         const qs = new URLSearchParams(query).toString();
         if (qs) url += (url.includes('?') ? '&' : '?') + qs;
     }
-    const headers = { Accept: 'application/json' };
+    const headers = responseType === 'blob' ? { Accept: 'image/*, application/octet-stream, application/json' } : { Accept: 'application/json' };
     if (token) headers['X-VVL-Token'] = token;
     let body;
     if (json !== undefined) {
@@ -186,6 +186,7 @@ export async function request(method, path, { json, form, query, timeoutMs = 600
         throw apiErr;
     }
     if (response.status === 204) return null;
+    if (responseType === 'blob') return response.blob();
     const text = await response.text();
     if (!text) return null;
     try {
@@ -197,6 +198,7 @@ export async function request(method, path, { json, form, query, timeoutMs = 600
 
 export const api = {
     get: (path, opts) => request('GET', path, opts),
+    blob: (path, opts = {}) => request('GET', path, { ...opts, responseType: 'blob' }),
     post: (path, json, opts = {}) => request('POST', path, { ...opts, json }),
     put: (path, json, opts = {}) => request('PUT', path, { ...opts, json }),
     del: (path, opts) => request('DELETE', path, opts),

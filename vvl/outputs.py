@@ -41,6 +41,7 @@ from vvl.fileutil import atomic_write_bytes, atomic_write_text
 logger = logging.getLogger(__name__)
 
 SUBDIRS = ("json", "xlsx", "label_collage", "input_image", "ocr_txt")
+OPTIONAL_SUBDIRS = ("xlsx", "label_collage", "input_image", "ocr_txt")
 STAMP_FORMAT = "%Y%m%d-%H-%M-%S"
 XLSX_NAME = "results.xlsx"
 SHEET_TITLE = "results"
@@ -162,15 +163,85 @@ def _record_of(result: dict):
     return record if isinstance(record, dict) and record else None
 
 
+def normalize_enabled_outputs(include=None) -> set[str]:
+    """Return the set of enabled output subfolders (`json` is always required)."""
+    if include is None:
+        return set(SUBDIRS)
+    enabled = {"json"}
+    if isinstance(include, dict):
+        unknown = sorted(set(include) - set(SUBDIRS))
+        if unknown:
+            raise OutputError("INVALID_INPUT", f"Unknown output type(s): {', '.join(unknown)}.")
+        for key in OPTIONAL_SUBDIRS:
+            val = include.get(key, True)
+            if not isinstance(val, bool):
+                raise OutputError("INVALID_INPUT", f"save.{key} must be true or false.")
+            if val:
+                enabled.add(key)
+        return enabled
+    if isinstance(include, (list, tuple, set)):
+        for item in include:
+            if not isinstance(item, str) or item not in SUBDIRS:
+                raise OutputError("INVALID_INPUT", f"Unknown output type '{item}'.")
+            enabled.add(item)
+        return enabled
+    raise OutputError("INVALID_INPUT", "save must be an object of output types.")
+
+
+def list_existing_folders(base_dir: str | os.PathLike, *, limit: int = 200) -> list[dict]:
+    """Existing run folders inside `base_dir`, newest first."""
+    base = Path(base_dir)
+    if not base.is_dir():
+        return []
+    entries = []
+    try:
+        for child in base.iterdir():
+            if child.name.startswith(".") or not child.is_dir():
+                continue
+            try:
+                st = child.stat()
+            except OSError:
+                continue
+            json_dir = child / "json" if (child / "json").is_dir() else child
+            try:
+                json_count = sum(1 for p in json_dir.iterdir() if p.is_file() and p.suffix.lower() == ".json")
+            except OSError:
+                json_count = 0
+            entries.append({
+                "name": child.name,
+                "path": str(child),
+                "json_dir": str(json_dir),
+                "json_count": json_count,
+                "modified_at": datetime.datetime.fromtimestamp(st.st_mtime, tz=datetime.timezone.utc).isoformat(),
+                "_mtime": st.st_mtime,
+            })
+    except OSError:
+        return []
+    entries.sort(key=lambda e: (e["_mtime"], e["name"].lower()), reverse=True)
+    return [{k: v for k, v in e.items() if k != "_mtime"} for e in entries[:limit]]
+
+
 class OutputBatch:
     """The results folder of one run. Safe to use from several request threads."""
 
-    def __init__(self, batch_id: str, path: Path, *, name: str, append: bool, existed: bool):
+    def __init__(
+        self,
+        batch_id: str,
+        path: Path,
+        *,
+        name: str,
+        append: bool,
+        existed: bool,
+        enabled: set[str] | None = None,
+        replace_existing: bool = False,
+    ):
         self.id = batch_id
         self.path = path
         self.name = name
         self.append = append
         self.existed = existed
+        self.enabled = set(enabled) | {"json"} if enabled is not None else set(SUBDIRS)
+        self.replace_existing = bool(replace_existing)
         self.created_at = time.time()
         self._lock = threading.Lock()
         self._xlsx_lock = threading.Lock()
@@ -182,20 +253,42 @@ class OutputBatch:
         self.errors: list[str] = []
         self.xlsx_path = self.path / "xlsx" / XLSX_NAME
         if append and existed:
-            self._load_existing_rows()
+            if "xlsx" in self.enabled:
+                self._load_existing_rows()
+            if not self.replace_existing:
+                self._seed_existing_stems()
 
     # ------------------------------------------------------------- names --
 
+    def _seed_existing_stems(self) -> None:
+        """Safe append: record stems already saved in this folder so nothing is overwritten."""
+        for sub in ("json", "input_image", "label_collage", "ocr_txt"):
+            folder = self.path / sub
+            if not folder.is_dir():
+                continue
+            try:
+                for p in folder.iterdir():
+                    if p.is_file() and not p.name.startswith("."):
+                        self._used.setdefault(p.stem.lower(), 1)
+            except OSError:
+                continue
+
     def reserve(self, filename: str) -> str:
-        """The file name (without extension) this image's files get; unique within this run."""
-        stem = safe_stem(filename)
+        """The file name (without extension) this image's files get; unique within this run
+        (and unique across existing files when safely adding to an existing folder)."""
+        base = safe_stem(filename)
         with self._lock:
-            count = self._used.get(stem.lower(), 0) + 1
-            self._used[stem.lower()] = count
-            if count > 1:
-                stem = f"{stem}_{count}"
-                self._used[stem.lower()] = 1
-        return stem
+            low = base.lower()
+            if low not in self._used:
+                self._used[low] = 1
+                return base
+            n = self._used[low] + 1
+            while f"{base}_{n}".lower() in self._used:
+                n += 1
+            self._used[low] = n
+            candidate = f"{base}_{n}"
+            self._used[candidate.lower()] = 1
+            return candidate
 
     # ------------------------------------------------------------- files --
 
@@ -211,7 +304,9 @@ class OutputBatch:
             self.saved[sub] += 1
 
     def save_input(self, stem: str, source_path: str, filename: str) -> None:
-        """Copy the image that is being processed."""
+        """Copy the image that is being processed (when enabled)."""
+        if "input_image" not in self.enabled:
+            return
         try:
             shutil.copyfile(source_path, self.path / "input_image" / f"{stem}{_extension(filename)}")
             self._count("input_image")
@@ -219,6 +314,8 @@ class OutputBatch:
             self._fail(f"input image {stem}", exc)
 
     def save_collage(self, stem: str, jpeg_bytes: bytes) -> None:
+        if "label_collage" not in self.enabled:
+            return
         try:
             atomic_write_bytes(self.path / "label_collage" / f"{stem}.jpg", jpeg_bytes)
             self._count("label_collage")
@@ -226,27 +323,29 @@ class OutputBatch:
             self._fail(f"label collage {stem}", exc)
 
     def save_result(self, stem: str, result: dict) -> None:
-        """Write the result's JSON and OCR text, and add its record to the spreadsheet."""
+        """Write the required JSON, plus optional OCR text and spreadsheet row."""
         try:
             atomic_write_text(self.path / "json" / f"{stem}.json", json.dumps(result, indent=2, ensure_ascii=False))
             self._count("json")
         except Exception as exc:
             self._fail(f"JSON {stem}", exc)
-        try:
-            ocr = result.get("ocr")
-            atomic_write_text(self.path / "ocr_txt" / f"{stem}.txt", ocr if isinstance(ocr, str) else "")
-            self._count("ocr_txt")
-        except Exception as exc:
-            self._fail(f"OCR text {stem}", exc)
-        record = _record_of(result)
-        if record is not None:
-            with self._lock:
-                self._rows[stem] = record
-                self._dirty = True
-                rows = len(self._rows)
-                due = rows <= XLSX_SMALL_ROWS or (time.monotonic() - self._last_xlsx) >= XLSX_MIN_SECONDS
-            if due:
-                self.flush()
+        if "ocr_txt" in self.enabled:
+            try:
+                ocr = result.get("ocr")
+                atomic_write_text(self.path / "ocr_txt" / f"{stem}.txt", ocr if isinstance(ocr, str) else "")
+                self._count("ocr_txt")
+            except Exception as exc:
+                self._fail(f"OCR text {stem}", exc)
+        if "xlsx" in self.enabled:
+            record = _record_of(result)
+            if record is not None:
+                with self._lock:
+                    self._rows[stem] = record
+                    self._dirty = True
+                    rows = len(self._rows)
+                    due = rows <= XLSX_SMALL_ROWS or (time.monotonic() - self._last_xlsx) >= XLSX_MIN_SECONDS
+                if due:
+                    self.flush()
 
     # -------------------------------------------------------- spreadsheet --
 
@@ -267,6 +366,8 @@ class OutputBatch:
 
     def flush(self) -> None:
         """Write the spreadsheet if records were added since it was last written."""
+        if "xlsx" not in self.enabled:
+            return
         with self._xlsx_lock:
             with self._lock:
                 if not self._dirty:
@@ -288,6 +389,8 @@ class OutputBatch:
     def finish(self) -> dict:
         """Last write of the spreadsheet. If results.xlsx cannot be replaced (open in Excel
         on Windows), the records go to a second file instead of being lost."""
+        if "xlsx" not in self.enabled:
+            return self.summary()
         self._xlsx_error = None
         self.flush()
         with self._lock:
@@ -316,6 +419,8 @@ class OutputBatch:
                 "name": self.name,
                 "append": self.append,
                 "existed": self.existed,
+                "replace_existing": self.replace_existing,
+                "enabled": [sub for sub in SUBDIRS if sub in self.enabled],
                 "saved": dict(self.saved),
                 "xlsx": str(self.xlsx_path) if self.saved["xlsx"] else None,
                 "errors": list(self.errors),
@@ -331,8 +436,17 @@ class OutputStore:
         self._lock = threading.Lock()
         self._batches: "OrderedDict[str, OutputBatch]" = OrderedDict()
 
-    def create(self, base_dir: str | os.PathLike, *, name=None, append: bool = False) -> OutputBatch:
+    def create(
+        self,
+        base_dir: str | os.PathLike,
+        *,
+        name=None,
+        append: bool = False,
+        include=None,
+        replace_existing: bool = False,
+    ) -> OutputBatch:
         name = validate_folder_name(name)
+        enabled = normalize_enabled_outputs(include)
         base = Path(base_dir)
         if append and not name:
             raise OutputError("INVALID_INPUT", "Name the folder to add to.")
@@ -357,7 +471,8 @@ class OutputStore:
             existed = False
         try:
             for sub in SUBDIRS:
-                (path / sub).mkdir(parents=True, exist_ok=True)
+                if sub in enabled:
+                    (path / sub).mkdir(parents=True, exist_ok=True)
             probe = path / f".vvl-write-test-{secrets.token_hex(4)}"
             probe.write_bytes(b"")
             probe.unlink()
@@ -365,7 +480,15 @@ class OutputStore:
             raise OutputError("OUTPUT_DIR_UNAVAILABLE",
                               f"Results cannot be written to {path} ({exc.strerror or exc}).") from None
 
-        batch = OutputBatch(secrets.token_urlsafe(18), path, name=name, append=append, existed=existed)
+        batch = OutputBatch(
+            secrets.token_urlsafe(18),
+            path,
+            name=name,
+            append=append,
+            existed=existed,
+            enabled=enabled,
+            replace_existing=replace_existing,
+        )
         with self._lock:
             # A new run: make sure earlier runs' spreadsheets are complete, and forget the oldest.
             earlier = list(self._batches.values())

@@ -43,8 +43,9 @@ THEMES = ("light", "dark", "system")
 SETUP_USAGES = ("openrouter", "local", "both")
 MAX_OCR_ENGINES = 4
 
-ALLOWED_KEYS = ("models_dir", "output_dir", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup")
+ALLOWED_KEYS = ("models_dir", "output_dir", "output_types", "selection", "enrichment", "ui", "engine", "generation", "openrouter", "setup")
 NESTED_KEYS = {
+    "output_types": ("xlsx", "label_collage", "input_image", "ocr_txt"),
     "selection": ("ocr", "parse"),
     "enrichment": ("elevation", "wfo_source"),
     "ui": ("theme",),
@@ -80,6 +81,8 @@ ENGINE_MAX_GPU_INDEX = 63
 DEFAULTS: dict[str, Any] = {
     "models_dir": None,  # None means <VVL_HOME>/models
     "output_dir": None,  # None means <VVL_HOME>/runs (vvl/outputs.py)
+    # Optional saved outputs (json is always saved and cannot be turned off).
+    "output_types": {"xlsx": True, "label_collage": True, "input_image": True, "ocr_txt": True},
     "selection": {"ocr": [DEMO_MODEL_ID], "parse": DEMO_MODEL_ID},
     "enrichment": {"elevation": True, "wfo_source": "off"},
     "ui": {"theme": "dark"},
@@ -154,6 +157,11 @@ def _sanitize_loaded(settings: dict) -> dict:
         clean["output_dir"] = _validate_dir("output_dir", clean.get("output_dir")) if clean.get("output_dir") else None
     except SettingsError:
         clean["output_dir"] = None
+    otypes = clean.get("output_types") if isinstance(clean.get("output_types"), dict) else {}
+    clean["output_types"] = {
+        key: otypes[key] if isinstance(otypes.get(key), bool) else DEFAULTS["output_types"][key]
+        for key in NESTED_KEYS["output_types"]
+    }
     sel = clean.get("selection") or {}
     ocr = sel.get("ocr")
     if isinstance(ocr, str):
@@ -414,6 +422,19 @@ def validate_update(update: Any, validate_ids: Callable[[list[str], str], None] 
     if "output_dir" in update:
         # null goes back to the default folder (<VVL_HOME>/runs).
         changes["output_dir"] = None if update["output_dir"] is None else _validate_dir("output_dir", update["output_dir"])
+    if "output_types" in update:
+        block = update["output_types"]
+        if not isinstance(block, dict):
+            raise SettingsError("output_types must be an object.", {"field": "output_types"})
+        unknown = sorted(set(block) - set(NESTED_KEYS["output_types"]))
+        if unknown:
+            raise SettingsError("Unknown output_types keys.", {"unknown_keys": unknown})
+        out = {}
+        for key, value in block.items():
+            if not isinstance(value, bool):
+                raise SettingsError(f"output_types.{key} must be true or false.", {"field": f"output_types.{key}"})
+            out[key] = value
+        changes["output_types"] = out
     if "selection" in update:
         changes["selection"] = _validate_selection(update["selection"], validate_ids)
     if "enrichment" in update:
