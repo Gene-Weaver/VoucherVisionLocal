@@ -6,7 +6,7 @@
 
 import { api, plainError, toast, toastError } from '../api.js';
 import {
-    el, icon, infoTip, replace, clear, stateBox, badge, defList, copyText,
+    el, icon, infoTip, replace, clear, stateBox, badge, defList, copyText, openModal,
 } from '../dom.js';
 import { on } from '../state.js';
 import { canPickFolders, openFolderButton, pickFolder } from '../output_folder.js';
@@ -401,9 +401,16 @@ export async function mount(panel) {
     }, icon('file', { size: 13 }), 'Load JSON');
     const openDirHost = el('span', { class: 'viewer-open-host' });
 
+    // The project's totals live in a popup, opened from the "Project Stats" button beside the project selector.
+    const statsHost = el('div', { class: 'viewer-stats-host' });
+    const statsBtn = el('button', {
+        type: 'button', class: 'button-secondary button-small viewer-stats-btn', hidden: true,
+        onclick: () => openModal({ title: 'Project Stats', body: statsHost, className: 'viewer-stats-modal' }),
+    }, 'Project Stats');
     const topBar = el('div', { class: 'viewer-topbar' },
         el('label', { for: projectSelect.id, class: 'viewer-bar-label' }, 'Project'),
         projectSelect,
+        statsBtn,
         refreshBtn,
         browseBtn,
         localBtn,
@@ -411,7 +418,6 @@ export async function mount(panel) {
         el('span', { class: 'spacer' }),
         openDirHost);
 
-    const statsHost = el('div', { class: 'viewer-stats-host' });
     const filterInput = el('input', {
         type: 'text', class: 'viewer-filter', placeholder: 'Filter images…', 'aria-label': 'Filter images',
         oninput: () => { filterText = filterInput.value; renderRecordList(); },
@@ -437,10 +443,11 @@ export async function mount(panel) {
         imagesHost);
     const emptyHost = el('div', { class: 'viewer-empty-host' });
 
-    replace(panel, el('div', { class: 'viewer-shell' }, topBar, statsHost, emptyHost, bodyGrid));
+    replace(panel, el('div', { class: 'viewer-shell' }, topBar, emptyHost, bodyGrid));
 
     // ------------------------------------------------------------ stats strip
     function renderStats() {
+        statsBtn.hidden = !stats || !project;
         if (!stats || !project) {
             clear(statsHost);
             return;
@@ -745,7 +752,55 @@ export async function mount(panel) {
 
     const inputCard = makeImageCard('input', 'Input image');
     const collageCard = makeImageCard('collage', 'Label collage');
-    replace(imagesHost, inputCard.card, collageCard.card);
+    replace(imagesHost, collageCard.card, inputCard.card);
+
+    // ---- spotlight: a magnified 16:9 window that follows the cursor over an image
+    const SPOT_W = 480;
+    const SPOT_H = 270;
+    const SPOT_GAP = 25;       // px between the cursor and the window's bottom edge
+    const SPOT_MARGIN = 8;
+    const spotlight = el('div', { class: 'viewer-spotlight', hidden: true, 'aria-hidden': 'true' });
+    document.body.appendChild(spotlight);
+    function hideSpotlight() {
+        spotlight.hidden = true;
+    }
+    function moveSpotlight(ev, img) {
+        const box = img.getBoundingClientRect();
+        if (!img.naturalWidth || !box.width || !box.height
+            || ev.clientX < box.left || ev.clientX > box.right || ev.clientY < box.top || ev.clientY > box.bottom) {
+            hideSpotlight();
+            return;
+        }
+        const w = Math.min(SPOT_W, window.innerWidth - 2 * SPOT_MARGIN);
+        const h = Math.round((w * 9) / 16);
+        // Full resolution when the image has it, and always at least 3x what is on screen.
+        const zoom = Math.max(3, Math.min(8, img.naturalWidth / box.width));
+        const bgW = box.width * zoom;
+        const bgH = box.height * zoom;
+        const fx = (ev.clientX - box.left) / box.width;
+        const fy = (ev.clientY - box.top) / box.height;
+        // Above the cursor; below it when there is no room; never past a screen edge.
+        let top = ev.clientY - SPOT_GAP - h;
+        if (top < SPOT_MARGIN) top = ev.clientY + SPOT_GAP;
+        top = Math.max(SPOT_MARGIN, Math.min(window.innerHeight - h - SPOT_MARGIN, top));
+        const left = Math.max(SPOT_MARGIN, Math.min(window.innerWidth - w - SPOT_MARGIN, ev.clientX - w / 2));
+        // Set through the style object: the page's security policy refuses style="" attributes.
+        spotlight.style.width = `${w}px`;
+        spotlight.style.height = `${h}px`;
+        spotlight.style.left = `${Math.round(left)}px`;
+        spotlight.style.top = `${Math.round(top)}px`;
+        spotlight.style.backgroundImage = `url("${img.src}")`;
+        spotlight.style.backgroundSize = `${bgW}px ${bgH}px`;
+        spotlight.style.backgroundPosition = `${Math.round(w / 2 - fx * bgW)}px ${Math.round(h / 2 - fy * bgH)}px`;
+        spotlight.hidden = false;
+    }
+    function attachSpotlight(target, img) {
+        target.addEventListener('mousemove', (ev) => moveSpotlight(ev, img));
+        target.addEventListener('mouseleave', hideSpotlight);
+        target.addEventListener('click', hideSpotlight);
+    }
+    window.addEventListener('scroll', hideSpotlight, true);
+    window.addEventListener('blur', hideSpotlight);
 
     function openPopup(kind) {
         if (!currentImageUrls[kind]) return;
@@ -767,11 +822,12 @@ export async function mount(panel) {
                 alt: kind === 'input' ? 'Input image' : 'Label collage',
                 class: 'viewer-thumb',
             });
-            replace(cardObj.body,
-                el('button', {
-                    type: 'button', class: 'viewer-thumb-btn', title: 'Click to open zoomable view',
-                    onclick: () => openPopup(kind),
-                }, img, el('span', { class: 'viewer-thumb-hint' }, icon('zoomIn', { size: 14 }), 'Zoom')));
+            const thumb = el('button', {
+                type: 'button', class: 'viewer-thumb-btn', 'aria-label': 'Open zoomable view',
+                onclick: () => openPopup(kind),
+            }, img, el('span', { class: 'viewer-thumb-hint' }, icon('zoomIn', { size: 14 }), 'Zoom'));
+            attachSpotlight(thumb, img);
+            replace(cardObj.body, thumb);
         } else {
             replace(cardObj.body, el('div', { class: 'viewer-img-placeholder' }, icon('image', { size: 20 }), el('span', null, urlOrText || 'Not included in JSON')));
         }

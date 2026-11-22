@@ -1551,3 +1551,14 @@ table.org-table tr.is-added td { background: var(--accent-soft); }
     .viewer-images { grid-template-columns: 1fr; }
     .output-replace-row { padding-left: 0; }
 }
+
+/* ---------------------------------------------------------------- Viewer: Project Stats button + popup, spotlight */
+button.viewer-stats-btn[hidden] { display: none; }
+.viewer-stats-modal .viewer-stats { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.viewer-stats-modal .viewer-stat-val, .viewer-stats-modal .viewer-stat-sub { white-space: normal; overflow-wrap: anywhere; }
+.viewer-spotlight {
+    position: fixed; z-index: 2147483647; pointer-events: none; border-radius: 8px;
+    border: 2px solid var(--accent-strong); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+    background-color: var(--surface-sunken); background-repeat: no-repeat;
+}
+.viewer-spotlight[hidden] { display: none; }
